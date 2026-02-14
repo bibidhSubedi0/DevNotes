@@ -1,6 +1,38 @@
 import { useState } from 'react';
 import { Handle, Position, useReactFlow } from '@xyflow/react';
-import { Box, X, Code, Info, Check, X as XIcon, Edit2 } from 'lucide-react';
+import { Box, X, Code, Info, Check, X as XIcon, Edit2, AlertCircle } from 'lucide-react';
+
+// INLINE VALIDATION for function names
+const validateFunctionName = (name) => {
+  const trimmed = name.trim();
+
+  if (trimmed.length === 0) {
+    return { valid: false, error: 'Function name cannot be empty' };
+  }
+
+  if (trimmed.length > 100) {
+    return { valid: false, error: 'Function name must be 100 characters or less' };
+  }
+
+  // Allow flexible function syntax
+  const basicPattern = /^[a-zA-Z_$]/;
+  if (!basicPattern.test(trimmed)) {
+    return { valid: false, error: 'Must start with a letter, _ or $' };
+  }
+
+  return { valid: true, value: trimmed };
+};
+
+// INLINE VALIDATION for descriptions
+const validateDescription = (description) => {
+  const trimmed = description.trim();
+
+  if (trimmed.length > 500) {
+    return { valid: false, error: 'Description must be 500 characters or less' };
+  }
+
+  return { valid: true, value: trimmed };
+};
 
 export default function FunctionNode({ id, data }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -8,26 +40,42 @@ export default function FunctionNode({ id, data }) {
   const [isEditingDesc, setIsEditingDesc] = useState(false);
   const [labelValue, setLabelValue] = useState(data.label);
   const [descValue, setDescValue] = useState(data.description || '');
+  const [labelError, setLabelError] = useState('');
+  const [descError, setDescError] = useState('');
   const { setNodes } = useReactFlow();
 
   const handleLabelSave = () => {
-    if (labelValue.trim()) {
-      setNodes((nodes) =>
-        nodes.map((node) =>
-          node.id === id ? { ...node, data: { ...node.data, label: labelValue.trim() } } : node
-        )
-      );
+    const validation = validateFunctionName(labelValue);
+    
+    if (!validation.valid) {
+      setLabelError(validation.error);
+      return;
     }
+
+    setNodes((nodes) =>
+      nodes.map((node) =>
+        node.id === id ? { ...node, data: { ...node.data, label: validation.value } } : node
+      )
+    );
     setIsEditingLabel(false);
+    setLabelError('');
   };
 
   const handleDescSave = () => {
+    const validation = validateDescription(descValue);
+    
+    if (!validation.valid) {
+      setDescError(validation.error);
+      return;
+    }
+
     setNodes((nodes) =>
       nodes.map((node) =>
-        node.id === id ? { ...node, data: { ...node.data, description: descValue } } : node
+        node.id === id ? { ...node, data: { ...node.data, description: validation.value } } : node
       )
     );
     setIsEditingDesc(false);
+    setDescError('');
   };
 
   const handleLabelKeyDown = (e) => {
@@ -36,6 +84,7 @@ export default function FunctionNode({ id, data }) {
     } else if (e.key === 'Escape') {
       setLabelValue(data.label);
       setIsEditingLabel(false);
+      setLabelError('');
     }
   };
 
@@ -45,11 +94,22 @@ export default function FunctionNode({ id, data }) {
     } else if (e.key === 'Escape') {
       setDescValue(data.description || '');
       setIsEditingDesc(false);
+      setDescError('');
     }
   };
 
   return (
     <div className="relative group">
+      {/* VISIBLE ERROR BANNER - Above function node */}
+      {labelError && (
+        <div className="absolute bottom-full left-0 mb-2 z-[9999] bg-red-500 text-white px-3 py-2 rounded-lg shadow-xl border-2 border-white min-w-[200px]">
+          <div className="flex items-center gap-2 text-xs font-bold">
+            <AlertCircle size={14} />
+            <span>{labelError}</span>
+          </div>
+        </div>
+      )}
+
       {/* Function Pill */}
       <div 
         className="
@@ -66,21 +126,37 @@ export default function FunctionNode({ id, data }) {
           <Code size={12} className="text-emerald-300" />
         </div>
         {isEditingLabel ? (
-          <div className="flex items-center gap-1 flex-1" onClick={(e) => e.stopPropagation()}>
-            <input
-              type="text"
-              value={labelValue}
-              onChange={(e) => setLabelValue(e.target.value)}
-              onKeyDown={handleLabelKeyDown}
-              autoFocus
-              className="bg-neutral-800 text-white text-xs font-mono font-semibold px-1.5 py-0.5 rounded border-2 border-emerald-400 focus:outline-none flex-1"
-            />
-            <button onClick={handleLabelSave} className="p-0.5 hover:bg-green-500/20 rounded text-green-400">
-              <Check size={12} />
-            </button>
-            <button onClick={() => { setLabelValue(data.label); setIsEditingLabel(false); }} className="p-0.5 hover:bg-red-500/20 rounded text-red-400">
-              <XIcon size={12} />
-            </button>
+          <div className="flex flex-col gap-1 flex-1" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-1">
+              <input
+                type="text"
+                value={labelValue}
+                onChange={(e) => {
+                  setLabelValue(e.target.value);
+                  if (labelError) setLabelError('');
+                }}
+                onKeyDown={handleLabelKeyDown}
+                autoFocus
+                maxLength={100}
+                className={`
+                  bg-neutral-800 text-white text-xs font-mono font-semibold px-1.5 py-0.5 rounded 
+                  border-2 focus:outline-none flex-1
+                  ${labelError ? 'border-red-400 ring-2 ring-red-500/50' : 'border-emerald-400'}
+                `}
+              />
+              <button onClick={handleLabelSave} className="p-0.5 hover:bg-green-500/20 rounded text-green-400" title="Save">
+                <Check size={12} />
+              </button>
+              <button onClick={() => { setLabelValue(data.label); setIsEditingLabel(false); setLabelError(''); }} className="p-0.5 hover:bg-red-500/20 rounded text-red-400" title="Cancel">
+                <XIcon size={12} />
+              </button>
+            </div>
+            {labelError && (
+              <div className="flex items-center gap-1 text-[9px] font-medium text-white bg-red-500 px-2 py-1 rounded shadow-lg">
+                <AlertCircle size={8} className="flex-shrink-0" />
+                <span>{labelError}</span>
+              </div>
+            )}
           </div>
         ) : (
           <>
@@ -221,13 +297,27 @@ export default function FunctionNode({ id, data }) {
                   <div>
                     <textarea
                       value={descValue}
-                      onChange={(e) => setDescValue(e.target.value)}
+                      onChange={(e) => {
+                        setDescValue(e.target.value);
+                        if (descError) setDescError('');
+                      }}
                       onKeyDown={handleDescKeyDown}
                       autoFocus
                       rows={3}
-                      className="w-full bg-neutral-800 text-neutral-100 text-sm px-2 py-1.5 rounded border border-emerald-500 focus:outline-none resize-none"
+                      maxLength={500}
+                      className={`
+                        w-full bg-neutral-800 text-neutral-100 text-sm px-2 py-1.5 rounded 
+                        border focus:outline-none resize-none
+                        ${descError ? 'border-red-500 ring-2 ring-red-500/50' : 'border-emerald-500'}
+                      `}
                       placeholder="Add function description..."
                     />
+                    {descError && (
+                      <div className="flex items-center gap-1.5 text-[10px] font-medium text-white bg-red-500 px-2 py-1 rounded shadow-lg mt-1 mb-1">
+                        <AlertCircle size={10} className="flex-shrink-0" />
+                        <span>{descError}</span>
+                      </div>
+                    )}
                     <div className="flex gap-1 mt-1">
                       <button
                         onClick={handleDescSave}
@@ -236,7 +326,7 @@ export default function FunctionNode({ id, data }) {
                         Save
                       </button>
                       <button
-                        onClick={() => { setDescValue(data.description || ''); setIsEditingDesc(false); }}
+                        onClick={() => { setDescValue(data.description || ''); setIsEditingDesc(false); setDescError(''); }}
                         className="px-2 py-1 bg-neutral-700 hover:bg-neutral-600 text-white text-xs rounded"
                       >
                         Cancel

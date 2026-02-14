@@ -1,39 +1,101 @@
 import { Handle, Position, useReactFlow } from '@xyflow/react';
-import { FolderGit2, Sparkles, Check, X, Plus } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { FolderGit2, Sparkles, Check, X, AlertCircle } from 'lucide-react';
+import { useState } from 'react';
+
+// INLINE VALIDATION - No external imports needed
+const validateNodeLabel = (label) => {
+  const trimmed = label.trim();
+
+  console.log('🔍 Validating:', trimmed); // DEBUG
+
+  if (trimmed.length === 0) {
+    console.log('❌ Empty!');
+    return { valid: false, error: 'Name cannot be empty' };
+  }
+
+  if (trimmed.length > 50) {
+    console.log('❌ Too long!');
+    return { valid: false, error: 'Name must be 50 characters or less' };
+  }
+
+  const pattern = /^[a-zA-Z0-9\s_\-\.()]+$/;
+  if (!pattern.test(trimmed)) {
+    console.log('❌ Invalid characters!');
+    return { valid: false, error: 'Only letters, numbers, spaces, and _-.() allowed' };
+  }
+
+  console.log('✅ Valid!');
+  return { valid: true, value: trimmed };
+};
 
 export default function ProjectNode({ id, data, selected }) {
   const { setNodes } = useReactFlow();
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(data.label);
-
-  // Projects are simple nodes - no nested children
-  const nodeWidth = 200;
-  const nodeHeight = 200;
+  const [validationError, setValidationError] = useState('');
 
   const handleSave = () => {
-    if (editValue.trim()) {
-      setNodes((nodes) =>
-        nodes.map((node) =>
-          node.id === id ? { ...node, data: { ...node.data, label: editValue.trim() } } : node
-        )
-      );
+    console.log('💾 SAVE CLICKED - Current value:', editValue);
+    
+    const validation = validateNodeLabel(editValue);
+    console.log('📋 Validation result:', validation);
+    
+    if (!validation.valid) {
+      console.log('🚫 BLOCKING SAVE - Setting error:', validation.error);
+      setValidationError(validation.error);
+      return; // STOP HERE - don't save
     }
+
+    console.log('✅ Saving to state...');
+    setNodes((nodes) =>
+      nodes.map((node) =>
+        node.id === id ? { ...node, data: { ...node.data, label: validation.value } } : node
+      )
+    );
     setIsEditing(false);
+    setValidationError('');
   };
 
   const handleCancel = () => {
     setEditValue(data.label);
     setIsEditing(false);
+    setValidationError('');
   };
 
   const handleKeyDown = (e) => {
-    if (e.key === 'Enter') handleSave();
-    else if (e.key === 'Escape') handleCancel();
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleSave();
+    } else if (e.key === 'Escape') {
+      handleCancel();
+    }
+  };
+
+  const handleChange = (e) => {
+    setEditValue(e.target.value);
+    if (validationError) {
+      setValidationError('');
+    }
   };
 
   return (
     <div className="relative group">
+      {/* GIANT ERROR BANNER AT TOP OF SCREEN */}
+      {validationError && (
+        <div 
+          className="fixed top-4 left-1/2 -translate-x-1/2 z-[99999] bg-red-500 text-white px-6 py-4 rounded-xl shadow-2xl border-4 border-white"
+          style={{ minWidth: '300px' }}
+        >
+          <div className="flex items-center gap-3 text-lg font-bold">
+            <AlertCircle size={28} />
+            <div>
+              <div className="text-xl">⚠️ VALIDATION ERROR</div>
+              <div className="text-sm font-normal mt-1">{validationError}</div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Outer glow ring */}
       <div className={`
         absolute inset-0 rounded-full transition-all duration-300
@@ -55,6 +117,7 @@ export default function ProjectNode({ id, data, selected }) {
             ? 'border-purple-300 scale-105' 
             : 'border-purple-400/80 group-hover:border-purple-300 group-hover:scale-105'
           }
+          ${validationError ? 'ring-8 ring-red-500 ring-offset-4' : ''}
         `}
       >
         
@@ -70,21 +133,43 @@ export default function ProjectNode({ id, data, selected }) {
         
         {/* Label */}
         {isEditing ? (
-          <div className="px-4 w-full" onClick={(e) => e.stopPropagation()}>
+          <div className="px-4 w-full flex flex-col items-center gap-2" onClick={(e) => e.stopPropagation()}>
             <input
               type="text"
               value={editValue}
-              onChange={(e) => setEditValue(e.target.value)}
+              onChange={handleChange}
               onKeyDown={handleKeyDown}
               autoFocus
-              className="w-full bg-white/20 text-white text-base font-bold px-2 py-1 rounded border-2 border-white focus:outline-none text-center"
+              maxLength={50}
+              className={`
+                w-full bg-white/20 text-white text-base font-bold px-2 py-1 rounded 
+                border-4 focus:outline-none text-center
+                ${validationError ? 'border-red-500 bg-red-500/30' : 'border-white'}
+              `}
             />
-            <div className="flex gap-1 justify-center mt-2">
-              <button onClick={handleSave} className="p-1.5 bg-green-500 hover:bg-green-400 rounded text-white">
-                <Check size={14} />
+            
+            {/* Inline error message */}
+            {validationError && (
+              <div className="flex items-center gap-2 text-xs font-bold text-white bg-red-600 px-3 py-2 rounded-lg shadow-xl border-2 border-white">
+                <AlertCircle size={16} />
+                <span>{validationError}</span>
+              </div>
+            )}
+            
+            <div className="flex gap-2 justify-center">
+              <button 
+                onClick={handleSave} 
+                className="px-3 py-2 bg-green-500 hover:bg-green-400 rounded-lg text-white font-bold transition-colors shadow-lg"
+                title="Save"
+              >
+                <Check size={16} />
               </button>
-              <button onClick={handleCancel} className="p-1.5 bg-red-500 hover:bg-red-400 rounded text-white">
-                <X size={14} />
+              <button 
+                onClick={handleCancel} 
+                className="px-3 py-2 bg-red-500 hover:bg-red-400 rounded-lg text-white font-bold transition-colors shadow-lg"
+                title="Cancel"
+              >
+                <X size={16} />
               </button>
             </div>
           </div>
@@ -92,7 +177,11 @@ export default function ProjectNode({ id, data, selected }) {
           <>
             <div 
               className="text-base font-bold text-white text-center px-4 drop-shadow-md tracking-tight cursor-pointer hover:text-purple-100"
-              onDoubleClick={() => { setIsEditing(true); setEditValue(data.label); }}
+              onDoubleClick={() => { 
+                setIsEditing(true); 
+                setEditValue(data.label);
+                setValidationError(''); 
+              }}
               title="Double-click to rename"
             >
               {data.label}

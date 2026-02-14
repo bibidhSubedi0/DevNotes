@@ -2,10 +2,50 @@ import { Handle, Position, useReactFlow } from '@xyflow/react';
 import { 
   FileCode, Plus, Code2, FileJson, FileType, FileText, Check, X, ChevronDown,
   Database, Palette, Settings, Package, Hash, Code, Globe, FileImage, FileCog,
-  Braces, Terminal, FileSpreadsheet, Circle
+  Braces, Terminal, FileSpreadsheet, Circle, AlertCircle
 } from 'lucide-react';
 import { useCallback, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+
+// INLINE VALIDATION for file names
+const validateFileName = (label) => {
+  const trimmed = label.trim();
+
+  if (trimmed.length === 0) {
+    return { valid: false, error: 'File name cannot be empty' };
+  }
+
+  if (trimmed.length > 50) {
+    return { valid: false, error: 'File name must be 50 characters or less' };
+  }
+
+  const pattern = /^[a-zA-Z0-9\s_\-\.()]+$/;
+  if (!pattern.test(trimmed)) {
+    return { valid: false, error: 'Only letters, numbers, spaces, and _-.() allowed' };
+  }
+
+  return { valid: true, value: trimmed };
+};
+
+// INLINE VALIDATION for custom file type
+const validateCustomFileType = (type) => {
+  const trimmed = type.trim();
+
+  if (trimmed.length === 0) {
+    return { valid: false, error: 'File type cannot be empty' };
+  }
+
+  if (trimmed.length > 30) {
+    return { valid: false, error: 'File type must be 30 characters or less' };
+  }
+
+  const pattern = /^[a-zA-Z0-9\s_\-\.+#]+$/;
+  if (!pattern.test(trimmed)) {
+    return { valid: false, error: 'Only letters, numbers, and _-.+# allowed' };
+  }
+
+  return { valid: true, value: trimmed };
+};
 
 const fileIcons = {
   // Frontend
@@ -62,9 +102,11 @@ export default function FileNode({ id, data, selected }) {
   const Icon = fileConfig.icon;
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(data.label);
+  const [validationError, setValidationError] = useState('');
   const [showTypeDropdown, setShowTypeDropdown] = useState(false);
   const [isEditingCustomType, setIsEditingCustomType] = useState(false);
   const [customTypeValue, setCustomTypeValue] = useState('');
+  const [customTypeError, setCustomTypeError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
   const buttonRef = useCallback(node => {
@@ -125,19 +167,26 @@ export default function FileNode({ id, data, selected }) {
   };
 
   const handleSave = () => {
-    if (editValue.trim()) {
-      setNodes((nodes) =>
-        nodes.map((node) =>
-          node.id === id ? { ...node, data: { ...node.data, label: editValue.trim() } } : node
-        )
-      );
+    const validation = validateFileName(editValue);
+    
+    if (!validation.valid) {
+      setValidationError(validation.error);
+      return;
     }
+
+    setNodes((nodes) =>
+      nodes.map((node) =>
+        node.id === id ? { ...node, data: { ...node.data, label: validation.value } } : node
+      )
+    );
     setIsEditing(false);
+    setValidationError('');
   };
 
   const handleCancel = () => {
     setEditValue(data.label);
     setIsEditing(false);
+    setValidationError('');
   };
 
   const handleKeyDown = (e) => {
@@ -146,6 +195,46 @@ export default function FileNode({ id, data, selected }) {
     } else if (e.key === 'Escape') {
       handleCancel();
     }
+  };
+
+  const handleChange = (e) => {
+    setEditValue(e.target.value);
+    if (validationError) {
+      setValidationError('');
+    }
+  };
+
+  const handleCustomTypeSave = () => {
+    const validation = validateCustomFileType(customTypeValue);
+    
+    if (!validation.valid) {
+      setCustomTypeError(validation.error);
+      return;
+    }
+
+    setNodes((nodes) =>
+      nodes.map((node) =>
+        node.id === id ? { 
+          ...node, 
+          data: { 
+            ...node.data, 
+            fileType: 'other',
+            customFileType: validation.value
+          } 
+        } : node
+      )
+    );
+    setIsEditingCustomType(false);
+    setShowTypeDropdown(false);
+    setCustomTypeValue('');
+    setCustomTypeError('');
+    setSearchQuery('');
+  };
+
+  const handleCustomTypeCancel = () => {
+    setIsEditingCustomType(false);
+    setCustomTypeValue('');
+    setCustomTypeError('');
   };
 
   const handleTypeChange = (newType) => {
@@ -162,32 +251,6 @@ export default function FileNode({ id, data, selected }) {
     );
     setShowTypeDropdown(false);
     setSearchQuery('');
-  };
-
-  const handleCustomTypeSave = () => {
-    if (customTypeValue.trim()) {
-      setNodes((nodes) =>
-        nodes.map((node) =>
-          node.id === id ? { 
-            ...node, 
-            data: { 
-              ...node.data, 
-              fileType: 'other',
-              customFileType: customTypeValue.trim()
-            } 
-          } : node
-        )
-      );
-    }
-    setIsEditingCustomType(false);
-    setShowTypeDropdown(false);
-    setCustomTypeValue('');
-    setSearchQuery('');
-  };
-
-  const handleCustomTypeCancel = () => {
-    setIsEditingCustomType(false);
-    setCustomTypeValue('');
   };
 
   // Filter file types based on search
@@ -284,15 +347,29 @@ export default function FileNode({ id, data, selected }) {
                         type="text"
                         placeholder="e.g., Solidity"
                         value={customTypeValue}
-                        onChange={(e) => setCustomTypeValue(e.target.value)}
+                        onChange={(e) => {
+                          setCustomTypeValue(e.target.value);
+                          if (customTypeError) setCustomTypeError('');
+                        }}
                         onClick={(e) => e.stopPropagation()}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') handleCustomTypeSave();
                           else if (e.key === 'Escape') handleCustomTypeCancel();
                         }}
                         autoFocus
-                        className="w-full bg-neutral-800 text-white text-[11px] px-2 py-1 rounded border border-blue-500 focus:outline-none mb-1.5"
+                        maxLength={30}
+                        className={`
+                          w-full bg-neutral-800 text-white text-[11px] px-2 py-1 rounded 
+                          border focus:outline-none mb-1.5
+                          ${customTypeError ? 'border-red-500 ring-2 ring-red-500/50' : 'border-blue-500'}
+                        `}
                       />
+                      {customTypeError && (
+                        <div className="flex items-center gap-1.5 text-[10px] font-medium text-white bg-red-500 px-2 py-1 rounded shadow-lg mb-1.5">
+                          <AlertCircle size={10} className="flex-shrink-0" />
+                          <span>{customTypeError}</span>
+                        </div>
+                      )}
                       <div className="flex gap-1">
                         <button
                           onClick={(e) => { e.stopPropagation(); handleCustomTypeSave(); }}
@@ -372,22 +449,35 @@ export default function FileNode({ id, data, selected }) {
 
           <div className="flex-1 min-w-0">
             {isEditing ? (
-              <div className="flex items-center gap-1">
-                <input
-                  type="text"
-                  value={editValue}
-                  onChange={(e) => setEditValue(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  autoFocus
-                  className="bg-blue-800 text-white text-sm font-bold px-2 py-1 rounded border-2 border-blue-400 focus:outline-none w-full"
-                  onClick={(e) => e.stopPropagation()}
-                />
-                <button onClick={handleSave} className="p-1 hover:bg-green-500/20 rounded text-green-400">
-                  <Check size={14} />
-                </button>
-                <button onClick={handleCancel} className="p-1 hover:bg-red-500/20 rounded text-red-400">
-                  <X size={14} />
-                </button>
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center gap-1">
+                  <input
+                    type="text"
+                    value={editValue}
+                    onChange={handleChange}
+                    onKeyDown={handleKeyDown}
+                    autoFocus
+                    maxLength={50}
+                    className={`
+                      bg-blue-800 text-white text-sm font-bold px-2 py-1 rounded 
+                      border-2 focus:outline-none w-full
+                      ${validationError ? 'border-red-400 ring-2 ring-red-500/50' : 'border-blue-400'}
+                    `}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                  <button onClick={handleSave} className="p-1 hover:bg-green-500/20 rounded text-green-400" title="Save">
+                    <Check size={14} />
+                  </button>
+                  <button onClick={handleCancel} className="p-1 hover:bg-red-500/20 rounded text-red-400" title="Cancel">
+                    <X size={14} />
+                  </button>
+                </div>
+                {validationError && (
+                  <div className="flex items-center gap-1.5 text-[10px] font-medium text-white bg-red-500 px-2 py-1 rounded shadow-lg">
+                    <AlertCircle size={10} className="flex-shrink-0" />
+                    <span>{validationError}</span>
+                  </div>
+                )}
               </div>
             ) : (
               <div onDoubleClick={handleDoubleClick} className="cursor-pointer">
