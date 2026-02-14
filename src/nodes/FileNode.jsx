@@ -26,27 +26,34 @@ export default function FileNode({ id, data, selected }) {
   const padding = 50;
   const calculatedHeight = Math.max(minHeight, headerHeight + (childFunctions.length * functionHeight) + padding);
 
-  // Update file height when function count changes
-  useEffect(() => {
-    setNodes((nodes) => {
-      const thisNode = nodes.find(n => n.id === id);
-      const parentId = thisNode?.parentId;
-      
-      return nodes.map((node) => {
-        if (node.id === id) {
-          return { 
-            ...node, 
-            style: { ...node.style, height: calculatedHeight, width: 300 }
-          };
-        }
-        if (node.id === parentId) {
-          return { ...node, data: { ...node.data, lastUpdate: Date.now() } };
-        }
-        return node;
-      });
+// Update file height when function count changes
+useEffect(() => {
+  setNodes((nodes) => {
+    const thisNode = nodes.find(n => n.id === id);
+    const parentId = thisNode?.parentId;
+    
+    return nodes.map((node) => {
+      if (node.id === id) {
+        return { 
+          ...node, 
+          style: { ...node.style, height: calculatedHeight, width: 300 }
+        };
+      }
+      // CRITICAL: Trigger parent component to recalculate positions
+      if (node.id === parentId) {
+        return { 
+          ...node, 
+          data: { 
+            ...node.data, 
+            lastUpdate: Date.now(), // This triggers ComponentNode's useEffect
+            childrenUpdate: Date.now() // Add this extra trigger
+          } 
+        };
+      }
+      return node;
     });
-  }, [calculatedHeight, id, setNodes, childFunctions.length]);
-
+  });
+}, [calculatedHeight, id, setNodes, childFunctions.length]);
   const addFunction = useCallback((evt) => {
     evt.stopPropagation();
     const newFnId = `fn_${Date.now()}`;
