@@ -1,38 +1,7 @@
 import { useState } from 'react';
 import { Handle, Position, useReactFlow } from '@xyflow/react';
 import { Box, X, Code, Info, Check, X as XIcon, Edit2, AlertCircle } from 'lucide-react';
-
-// INLINE VALIDATION for function names
-const validateFunctionName = (name) => {
-  const trimmed = name.trim();
-
-  if (trimmed.length === 0) {
-    return { valid: false, error: 'Function name cannot be empty' };
-  }
-
-  if (trimmed.length > 100) {
-    return { valid: false, error: 'Function name must be 100 characters or less' };
-  }
-
-  // Allow flexible function syntax
-  const basicPattern = /^[a-zA-Z_$]/;
-  if (!basicPattern.test(trimmed)) {
-    return { valid: false, error: 'Must start with a letter, _ or $' };
-  }
-
-  return { valid: true, value: trimmed };
-};
-
-// INLINE VALIDATION for descriptions
-const validateDescription = (description) => {
-  const trimmed = description.trim();
-
-  if (trimmed.length > 500) {
-    return { valid: false, error: 'Description must be 500 characters or less' };
-  }
-
-  return { valid: true, value: trimmed };
-};
+import { validateFunctionName, validateDescription } from '../utils/validation';
 
 export default function FunctionNode({ id, data }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -45,13 +14,18 @@ export default function FunctionNode({ id, data }) {
   const { setNodes } = useReactFlow();
 
   const handleLabelSave = () => {
+    console.log('🔍 FunctionNode - Validating:', labelValue); // DEBUG
+    
     const validation = validateFunctionName(labelValue);
+    console.log('📋 FunctionNode - Validation result:', validation); // DEBUG
     
     if (!validation.valid) {
+      console.log('❌ FunctionNode - BLOCKING SAVE:', validation.error); // DEBUG
       setLabelError(validation.error);
       return;
     }
 
+    console.log('✅ FunctionNode - Saving...'); // DEBUG
     setNodes((nodes) =>
       nodes.map((node) =>
         node.id === id ? { ...node, data: { ...node.data, label: validation.value } } : node
@@ -151,12 +125,6 @@ export default function FunctionNode({ id, data }) {
                 <XIcon size={12} />
               </button>
             </div>
-            {labelError && (
-              <div className="flex items-center gap-1 text-[9px] font-medium text-white bg-red-500 px-2 py-1 rounded shadow-lg">
-                <AlertCircle size={8} className="flex-shrink-0" />
-                <span>{labelError}</span>
-              </div>
-            )}
           </div>
         ) : (
           <>
@@ -313,8 +281,8 @@ export default function FunctionNode({ id, data }) {
                       placeholder="Add function description..."
                     />
                     {descError && (
-                      <div className="flex items-center gap-1.5 text-[10px] font-medium text-white bg-red-500 px-2 py-1 rounded shadow-lg mt-1 mb-1">
-                        <AlertCircle size={10} className="flex-shrink-0" />
+                      <div className="flex items-center gap-2 text-xs font-bold text-white bg-red-500 px-3 py-2 rounded-lg shadow-xl border-2 border-white mt-1 mb-1">
+                        <AlertCircle size={14} className="flex-shrink-0" />
                         <span>{descError}</span>
                       </div>
                     )}

@@ -6,46 +6,7 @@ import {
 } from 'lucide-react';
 import { useCallback, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-
-// INLINE VALIDATION for file names
-const validateFileName = (label) => {
-  const trimmed = label.trim();
-
-  if (trimmed.length === 0) {
-    return { valid: false, error: 'File name cannot be empty' };
-  }
-
-  if (trimmed.length > 50) {
-    return { valid: false, error: 'File name must be 50 characters or less' };
-  }
-
-  const pattern = /^[a-zA-Z0-9\s_\-\.()]+$/;
-  if (!pattern.test(trimmed)) {
-    return { valid: false, error: 'Only letters, numbers, spaces, and _-.() allowed' };
-  }
-
-  return { valid: true, value: trimmed };
-};
-
-// INLINE VALIDATION for custom file type
-const validateCustomFileType = (type) => {
-  const trimmed = type.trim();
-
-  if (trimmed.length === 0) {
-    return { valid: false, error: 'File type cannot be empty' };
-  }
-
-  if (trimmed.length > 30) {
-    return { valid: false, error: 'File type must be 30 characters or less' };
-  }
-
-  const pattern = /^[a-zA-Z0-9\s_\-\.+#]+$/;
-  if (!pattern.test(trimmed)) {
-    return { valid: false, error: 'Only letters, numbers, and _-.+# allowed' };
-  }
-
-  return { valid: true, value: trimmed };
-};
+import { validateNodeLabel, validateCustomFileType } from '../utils/validation';
 
 const fileIcons = {
   // Frontend
@@ -167,7 +128,7 @@ export default function FileNode({ id, data, selected }) {
   };
 
   const handleSave = () => {
-    const validation = validateFileName(editValue);
+    const validation = validateNodeLabel(editValue);
     
     if (!validation.valid) {
       setValidationError(validation.error);

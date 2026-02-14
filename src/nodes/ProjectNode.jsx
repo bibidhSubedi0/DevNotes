@@ -1,32 +1,7 @@
 import { Handle, Position, useReactFlow } from '@xyflow/react';
 import { FolderGit2, Sparkles, Check, X, AlertCircle } from 'lucide-react';
 import { useState } from 'react';
-
-// INLINE VALIDATION - No external imports needed
-const validateNodeLabel = (label) => {
-  const trimmed = label.trim();
-
-  console.log('🔍 Validating:', trimmed); // DEBUG
-
-  if (trimmed.length === 0) {
-    console.log('❌ Empty!');
-    return { valid: false, error: 'Name cannot be empty' };
-  }
-
-  if (trimmed.length > 50) {
-    console.log('❌ Too long!');
-    return { valid: false, error: 'Name must be 50 characters or less' };
-  }
-
-  const pattern = /^[a-zA-Z0-9\s_\-\.()]+$/;
-  if (!pattern.test(trimmed)) {
-    console.log('❌ Invalid characters!');
-    return { valid: false, error: 'Only letters, numbers, spaces, and _-.() allowed' };
-  }
-
-  console.log('✅ Valid!');
-  return { valid: true, value: trimmed };
-};
+import { validateNodeLabel } from '../utils/validation';
 
 export default function ProjectNode({ id, data, selected }) {
   const { setNodes } = useReactFlow();
@@ -35,18 +10,13 @@ export default function ProjectNode({ id, data, selected }) {
   const [validationError, setValidationError] = useState('');
 
   const handleSave = () => {
-    console.log('💾 SAVE CLICKED - Current value:', editValue);
-    
     const validation = validateNodeLabel(editValue);
-    console.log('📋 Validation result:', validation);
     
     if (!validation.valid) {
-      console.log('🚫 BLOCKING SAVE - Setting error:', validation.error);
       setValidationError(validation.error);
-      return; // STOP HERE - don't save
+      return;
     }
 
-    console.log('✅ Saving to state...');
     setNodes((nodes) =>
       nodes.map((node) =>
         node.id === id ? { ...node, data: { ...node.data, label: validation.value } } : node
@@ -80,7 +50,7 @@ export default function ProjectNode({ id, data, selected }) {
 
   return (
     <div className="relative group">
-      {/* GIANT ERROR BANNER AT TOP OF SCREEN */}
+      {/* ERROR BANNER AT TOP OF SCREEN */}
       {validationError && (
         <div 
           className="fixed top-4 left-1/2 -translate-x-1/2 z-[99999] bg-red-500 text-white px-6 py-4 rounded-xl shadow-2xl border-4 border-white"
