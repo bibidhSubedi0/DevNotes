@@ -1,45 +1,77 @@
 import { Handle, Position, useReactFlow } from '@xyflow/react';
-import { Package, Plus, Check, X, AlertCircle } from 'lucide-react';
+import { Package, Plus, Check, X } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { validateNodeLabel } from '../utils/validation';
 
 export default function ComponentNode({ id, data, selected }) {
   const { setNodes, getNodes } = useReactFlow();
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(data.label);
-  const [validationError, setValidationError] = useState('');
 
   // Calculate dynamic size based on ALL nested children (files and their functions)
   const nodes = getNodes();
   const childFiles = nodes.filter(n => n.parentId === id && n.type === 'file');
   
-  // Calculate total height needed for all files
-  let totalHeight = 80; // Header + padding
+  // Track total function count across all files to trigger updates
+  const totalFunctionCount = childFiles.reduce((sum, file) => {
+    return sum + nodes.filter(n => n.parentId === file.id).length;
+  }, 0);
+  
+  // Calculate total height needed for all files with BIGGER SPACING
+  let totalHeight = 100; // Header + top padding
   childFiles.forEach(file => {
     const fileFunctions = nodes.filter(n => n.parentId === file.id);
-    const fileHeight = Math.max(200, 52 + (fileFunctions.length * 45) + 30);
-    totalHeight += fileHeight + 20; // File height + spacing
+    const fileHeight = Math.max(240, 70 + (fileFunctions.length * 65) + 50); // Match FileNode calculation
+    totalHeight += fileHeight + 30; // File height + gap between files
   });
 
-  const minHeight = 250;
+  const minHeight = 300;
   const calculatedHeight = Math.max(minHeight, totalHeight);
-  const calculatedWidth = 350;
+  const calculatedWidth = 400;
 
-  // Update node dimensions when children change
+  // Update node dimensions AND reposition all files when children change
   useEffect(() => {
-    setNodes((nodes) =>
-      nodes.map((node) =>
-        node.id === id
-          ? { ...node, style: { ...node.style, width: calculatedWidth, height: calculatedHeight } }
-          : node
-      )
-    );
-  }, [calculatedHeight, calculatedWidth, id, setNodes]);
+    setNodes((nodes) => {
+      // First, calculate correct positions for all files
+      let currentY = 95; // Start position
+      const updatedNodes = nodes.map((node) => {
+        if (node.id === id) {
+          // Update component size
+          return { ...node, style: { ...node.style, width: calculatedWidth, height: calculatedHeight } };
+        }
+        
+        // Reposition files that belong to this component
+        if (node.parentId === id && node.type === 'file') {
+          const fileFunctions = nodes.filter(n => n.parentId === node.id);
+          const fileHeight = Math.max(240, 70 + (fileFunctions.length * 65) + 50);
+          
+          const updatedFile = { 
+            ...node, 
+            position: { ...node.position, y: currentY },
+            style: { ...node.style, height: fileHeight }
+          };
+          
+          currentY += fileHeight + 30; // Move Y position for next file
+          return updatedFile;
+        }
+        
+        return node;
+      });
+      
+      return updatedNodes;
+    });
+  }, [calculatedHeight, calculatedWidth, id, setNodes, childFiles.length, totalFunctionCount]);
 
   const addFile = (evt) => {
     evt.stopPropagation();
     const newFileId = `file_${Date.now()}`;
-    const currentFiles = childFiles.length;
+    
+    // Calculate Y position based on existing files
+    let yPosition = 95; // Start BELOW header
+    childFiles.forEach(file => {
+      const fileFunctions = nodes.filter(n => n.parentId === file.id);
+      const fileHeight = Math.max(240, 70 + (fileFunctions.length * 65) + 50);
+      yPosition += fileHeight + 30; // Add file height + gap
+    });
     
     setNodes((nodes) => [
       ...nodes,
@@ -48,46 +80,32 @@ export default function ComponentNode({ id, data, selected }) {
         type: 'file',
         parentId: id,
         extent: 'parent',
-        position: { x: 20, y: 70 + (currentFiles * 220) },
+        position: { x: 25, y: yPosition },
         data: { label: 'NewFile.ts', fileType: 'typescript' },
-        style: { width: 310 }
+        style: { width: 350, height: 240 } // Increased width from 330
       }
     ]);
   };
 
   const handleSave = () => {
-    const validation = validateNodeLabel(editValue);
-    
-    if (!validation.valid) {
-      setValidationError(validation.error);
-      return;
+    if (editValue.trim()) {
+      setNodes((nodes) =>
+        nodes.map((node) =>
+          node.id === id ? { ...node, data: { ...node.data, label: editValue.trim() } } : node
+        )
+      );
     }
-
-    setNodes((nodes) =>
-      nodes.map((node) =>
-        node.id === id ? { ...node, data: { ...node.data, label: validation.value } } : node
-      )
-    );
     setIsEditing(false);
-    setValidationError('');
   };
 
   const handleCancel = () => {
     setEditValue(data.label);
     setIsEditing(false);
-    setValidationError('');
   };
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter') handleSave();
     else if (e.key === 'Escape') handleCancel();
-  };
-
-  const handleChange = (e) => {
-    setEditValue(e.target.value);
-    if (validationError) {
-      setValidationError('');
-    }
   };
 
   return (
@@ -103,48 +121,35 @@ export default function ComponentNode({ id, data, selected }) {
       `}
       style={{ width: `${calculatedWidth}px`, height: `${calculatedHeight}px` }}
     >
-      {/* Header */}
-      <div className="relative flex items-center justify-between px-4 py-3 bg-amber-950/60 border-b border-amber-700 backdrop-blur-sm">
+      {/* Header - PROTECTED ZONE */}
+      <div className="relative flex items-center justify-between px-4 py-3 bg-amber-950/60 border-b border-amber-700 backdrop-blur-sm pointer-events-auto z-10">
         <div className="flex items-center gap-2.5 flex-1 min-w-0">
           <div className="p-1.5 bg-amber-500/20 rounded-lg flex-shrink-0">
             <Package size={16} className="text-amber-300" />
           </div>
           <div className="flex-1 min-w-0">
             {isEditing ? (
-              <div className="flex flex-col gap-1">
-                <div className="flex items-center gap-1">
-                  <input
-                    type="text"
-                    value={editValue}
-                    onChange={handleChange}
-                    onKeyDown={handleKeyDown}
-                    autoFocus
-                    maxLength={50}
-                    className={`
-                      bg-amber-800 text-white text-sm font-bold px-2 py-1 rounded 
-                      border-2 focus:outline-none w-full
-                      ${validationError ? 'border-red-400 ring-2 ring-red-500/50' : 'border-amber-400'}
-                    `}
-                    onClick={(e) => e.stopPropagation()}
-                  />
-                  <button onClick={handleSave} className="p-1 hover:bg-green-500/20 rounded text-green-400" title="Save">
-                    <Check size={14} />
-                  </button>
-                  <button onClick={handleCancel} className="p-1 hover:bg-red-500/20 rounded text-red-400" title="Cancel">
-                    <X size={14} />
-                  </button>
-                </div>
-                {validationError && (
-                  <div className="flex items-center gap-1.5 text-[10px] font-medium text-white bg-red-500 px-2 py-1 rounded shadow-lg">
-                    <AlertCircle size={10} className="flex-shrink-0" />
-                    <span>{validationError}</span>
-                  </div>
-                )}
+              <div className="flex items-center gap-1">
+                <input
+                  type="text"
+                  value={editValue}
+                  onChange={(e) => setEditValue(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  autoFocus
+                  className="bg-amber-800 text-white text-sm font-bold px-2 py-1 rounded border-2 border-amber-400 focus:outline-none w-full"
+                  onClick={(e) => e.stopPropagation()}
+                />
+                <button onClick={handleSave} className="p-1 hover:bg-green-500/20 rounded text-green-400">
+                  <Check size={14} />
+                </button>
+                <button onClick={handleCancel} className="p-1 hover:bg-red-500/20 rounded text-red-400">
+                  <X size={14} />
+                </button>
               </div>
             ) : (
               <div onDoubleClick={(e) => { e.stopPropagation(); setIsEditing(true); }} className="cursor-pointer">
-                <span className="text-sm font-bold text-white tracking-tight">{data.label}</span>
-                <div className="text-[10px] uppercase text-amber-300 font-semibold tracking-wider">
+                <span className="text-base font-bold text-white tracking-tight">{data.label}</span>
+                <div className="text-xs uppercase text-amber-300 font-semibold tracking-wider">
                   Component • double-click to rename
                 </div>
               </div>
