@@ -10,26 +10,26 @@ import {
   getChildNodes,
 } from '../utils/nodeHelpers';
 import { 
-  getRandomProjectPosition, 
-  getRandomComponentPosition 
+  getSmartProjectPosition, 
+  getSmartComponentPosition 
 } from '../utils/positioning';
 
 export const useNodeManager = (nodes, setNodes) => {
-  // ✅ No more useReactFlow() — no provider needed at this level
+  // ✅ No more useReactFlow() – no provider needed at this level
 
   const addProject = useCallback(() => {
-    const position = getRandomProjectPosition();
+    const position = getSmartProjectPosition(nodes);
     const newNode = createProjectNode(position, nodes);
     setNodes((nds) => [...nds, newNode]);
   }, [nodes, setNodes]);
 
   const addComponent = useCallback(() => {
-    const position = getRandomComponentPosition();
+    const position = getSmartComponentPosition(nodes);
     const newNode = createComponentNode(position, nodes);
     setNodes((nds) => [...nds, newNode]);
   }, [nodes, setNodes]);
 
-  // Use functional updater to get fresh nodes — avoids stale closure
+  // Use functional updater to get fresh nodes – avoids stale closure
   const addFile = useCallback((componentId) => {
     setNodes((nds) => {
       const childFiles = getChildNodes(componentId, nds).filter(n => n.type === 'file');
