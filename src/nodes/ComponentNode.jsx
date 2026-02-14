@@ -1,11 +1,13 @@
 import { Handle, Position, useReactFlow } from '@xyflow/react';
-import { Package, Plus, Check, X } from 'lucide-react';
+import { Package, Plus, Check, X, AlertCircle } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { validateNodeLabel } from '../utils/validation';
 
 export default function ComponentNode({ id, data, selected }) {
   const { setNodes, getNodes } = useReactFlow();
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(data.label);
+  const [validationError, setValidationError] = useState('');
 
   // Calculate dynamic size based on ALL nested children (files and their functions)
   const nodes = getNodes();
@@ -54,24 +56,38 @@ export default function ComponentNode({ id, data, selected }) {
   };
 
   const handleSave = () => {
-    if (editValue.trim()) {
-      setNodes((nodes) =>
-        nodes.map((node) =>
-          node.id === id ? { ...node, data: { ...node.data, label: editValue.trim() } } : node
-        )
-      );
+    const validation = validateNodeLabel(editValue);
+    
+    if (!validation.valid) {
+      setValidationError(validation.error);
+      return;
     }
+
+    setNodes((nodes) =>
+      nodes.map((node) =>
+        node.id === id ? { ...node, data: { ...node.data, label: validation.value } } : node
+      )
+    );
     setIsEditing(false);
+    setValidationError('');
   };
 
   const handleCancel = () => {
     setEditValue(data.label);
     setIsEditing(false);
+    setValidationError('');
   };
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter') handleSave();
     else if (e.key === 'Escape') handleCancel();
+  };
+
+  const handleChange = (e) => {
+    setEditValue(e.target.value);
+    if (validationError) {
+      setValidationError('');
+    }
   };
 
   return (
@@ -95,22 +111,35 @@ export default function ComponentNode({ id, data, selected }) {
           </div>
           <div className="flex-1 min-w-0">
             {isEditing ? (
-              <div className="flex items-center gap-1">
-                <input
-                  type="text"
-                  value={editValue}
-                  onChange={(e) => setEditValue(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  autoFocus
-                  className="bg-amber-800 text-white text-sm font-bold px-2 py-1 rounded border-2 border-amber-400 focus:outline-none w-full"
-                  onClick={(e) => e.stopPropagation()}
-                />
-                <button onClick={handleSave} className="p-1 hover:bg-green-500/20 rounded text-green-400">
-                  <Check size={14} />
-                </button>
-                <button onClick={handleCancel} className="p-1 hover:bg-red-500/20 rounded text-red-400">
-                  <X size={14} />
-                </button>
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center gap-1">
+                  <input
+                    type="text"
+                    value={editValue}
+                    onChange={handleChange}
+                    onKeyDown={handleKeyDown}
+                    autoFocus
+                    maxLength={50}
+                    className={`
+                      bg-amber-800 text-white text-sm font-bold px-2 py-1 rounded 
+                      border-2 focus:outline-none w-full
+                      ${validationError ? 'border-red-400 ring-2 ring-red-500/50' : 'border-amber-400'}
+                    `}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                  <button onClick={handleSave} className="p-1 hover:bg-green-500/20 rounded text-green-400" title="Save">
+                    <Check size={14} />
+                  </button>
+                  <button onClick={handleCancel} className="p-1 hover:bg-red-500/20 rounded text-red-400" title="Cancel">
+                    <X size={14} />
+                  </button>
+                </div>
+                {validationError && (
+                  <div className="flex items-center gap-1.5 text-[10px] font-medium text-white bg-red-500 px-2 py-1 rounded shadow-lg">
+                    <AlertCircle size={10} className="flex-shrink-0" />
+                    <span>{validationError}</span>
+                  </div>
+                )}
               </div>
             ) : (
               <div onDoubleClick={(e) => { e.stopPropagation(); setIsEditing(true); }} className="cursor-pointer">
