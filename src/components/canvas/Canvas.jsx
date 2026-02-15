@@ -41,6 +41,10 @@ export const Canvas = ({
         zoomOnPinch={true}
         panOnScroll={false}
         zoomOnDoubleClick={false}
+        // Multi-select: Shift+click individual nodes, drag empty canvas for box select
+        multiSelectionKey="Shift"
+        selectionOnDrag={true}
+        selectionMode="partial"
       >
         <Background
           color={BACKGROUND_CONFIG.color}

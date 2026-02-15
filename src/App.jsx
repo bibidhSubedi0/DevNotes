@@ -6,6 +6,7 @@ import { StatsPanel }       from './components/Panels/StatsPanel';
 import { EdgeTypeSelector } from './components/Panels/EdgeTypeSelector';
 import { ToolbarPanel }     from './components/Panels/ToolbarPanel';
 import { DetailPanel }      from './components/Panels/DetailPanel';
+import { BulkActionsBar }   from './components/Panels/BulkActionsBar';
 
 import FunctionNode  from './nodes/FunctionNode';
 import FileNode      from './nodes/FileNode';
@@ -47,6 +48,7 @@ const initialNodes = [
     type: 'component',
     position: { x: 360, y: 60 },
     data: {
+      width: 360,
       label: 'Auth Component',
       description: 'Handles all authentication flows — login, logout, token refresh.',
       techStack: ['JWT', 'Axios'],
@@ -126,6 +128,12 @@ export default function App() {
   const { addProject, addComponent } = useNodeManager(nodes, setNodes);
   const { handleConnect }            = useEdgeManager(setEdges, selectedEdgeType);
 
+  // ── Multi-select / bulk state ──
+  const selectedNodes = nodes.filter(n => n.selected);
+  const clearSelection = useCallback(() => {
+    setNodes(nds => nds.map(n => n.selected ? { ...n, selected: false } : n));
+  }, [setNodes]);
+
   const handleNodeClick = useCallback((event, node) => {
     event.stopPropagation();
     setSelectedNodeId(prev => prev === node.id ? null : node.id);
@@ -153,6 +161,14 @@ export default function App() {
           nodeTypes={nodeTypes}
         />
       </div>
+
+      <BulkActionsBar
+        selectedNodes={selectedNodes}
+        nodes={nodes}
+        setNodes={setNodes}
+        setEdges={setEdges}
+        onClear={clearSelection}
+      />
 
       {detailOpen && (
         <DetailPanel
