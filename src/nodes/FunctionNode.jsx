@@ -1,127 +1,209 @@
 import { useState } from 'react';
 import { Handle, Position, useReactFlow } from '@xyflow/react';
-import { Code2, ChevronDown, ChevronUp, Check, X, Edit3 } from 'lucide-react';
+import { Code2, Check, X } from 'lucide-react';
+
+/* ── complexity config ─────────────────────────────────────────────────── */
+const COMPLEXITY = {
+  low:    { dot: 'bg-emerald-400', text: 'text-emerald-400', label: 'low' },
+  medium: { dot: 'bg-amber-400',   text: 'text-amber-400',   label: 'med' },
+  high:   { dot: 'bg-red-400',     text: 'text-red-400',     label: 'high' },
+};
 
 export default function FunctionNode({ id, data, selected }) {
-  const [isExpanded, setIsExpanded]         = useState(false);
   const [isEditingLabel, setIsEditingLabel] = useState(false);
-  const [isEditingDesc, setIsEditingDesc]   = useState(false);
   const [labelValue, setLabelValue]         = useState(data.label);
-  const [descValue, setDescValue]           = useState(data.description || '');
   const { setNodes } = useReactFlow();
 
-  const saveLabelEdit = () => {
+  /* ── label save / cancel ── */
+  const saveLabel = () => {
     const trimmed = labelValue.trim();
-    if (trimmed) setNodes(nodes => nodes.map(n => n.id === id ? { ...n, data: { ...n.data, label: trimmed } } : n));
-    else setLabelValue(data.label);
+    if (trimmed) {
+      setNodes(nodes =>
+        nodes.map(n => n.id === id ? { ...n, data: { ...n.data, label: trimmed } } : n)
+      );
+    } else {
+      setLabelValue(data.label);
+    }
     setIsEditingLabel(false);
   };
-  const cancelLabelEdit = () => { setLabelValue(data.label); setIsEditingLabel(false); };
-  const onLabelKey = (e) => { if (e.key === 'Enter') saveLabelEdit(); if (e.key === 'Escape') cancelLabelEdit(); };
 
-  const saveDescEdit = () => {
-    setNodes(nodes => nodes.map(n => n.id === id ? { ...n, data: { ...n.data, description: descValue } } : n));
-    setIsEditingDesc(false);
+  const cancelLabel = () => {
+    setLabelValue(data.label);
+    setIsEditingLabel(false);
   };
-  const cancelDescEdit = () => { setDescValue(data.description || ''); setIsEditingDesc(false); };
-  const onDescKey = (e) => { if (e.key === 'Enter' && e.ctrlKey) saveDescEdit(); if (e.key === 'Escape') cancelDescEdit(); };
 
-  const hasDesc   = Boolean(data.description?.trim());
-  const shortDesc = data.description?.length > 48 ? data.description.slice(0, 46) + '…' : data.description;
+  const onKeyDown = (e) => {
+    if (e.key === 'Enter')  { e.stopPropagation(); saveLabel(); }
+    if (e.key === 'Escape') { e.stopPropagation(); cancelLabel(); }
+  };
+
+  /* ── derived display data ── */
+  const complexity    = COMPLEXITY[data.complexity] ?? null;
+  const tags          = Array.isArray(data.tags) ? data.tags.slice(0, 3) : [];
+  const params        = Array.isArray(data.params) ? data.params : [];
+  const hasDesc       = Boolean(data.description?.trim());
+  const hasReturnType = Boolean(data.returns?.trim());
+  const hasExtra      = complexity || tags.length > 0 || hasReturnType;
 
   return (
     <div className="relative">
 
-      {/* Main pill */}
-      <div className={`pl-3 pr-2 py-2 bg-neutral-900 border-2 rounded-xl shadow-lg transition-all duration-150 min-w-[210px]
-        ${selected ? 'border-emerald-400 shadow-emerald-500/20' : 'border-neutral-700 hover:border-emerald-600/50'}`}>
-        <div className="flex items-center gap-2">
-          <div className={`p-1.5 rounded-lg flex-shrink-0 transition-colors ${isExpanded ? 'bg-emerald-500/20' : 'bg-neutral-800'}`}>
-            <Code2 size={13} className={`transition-colors ${isExpanded ? 'text-emerald-400' : 'text-neutral-500'}`} />
+      {/* ── Card ─────────────────────────────────────────────────────── */}
+      <div
+        className={`
+          bg-neutral-900 border-2 rounded-xl shadow-lg
+          transition-all duration-150 w-[260px]
+          ${selected
+            ? 'border-emerald-400 shadow-emerald-500/25 ring-4 ring-emerald-500/10'
+            : 'border-neutral-800 hover:border-emerald-700/60 hover:shadow-emerald-500/10'}
+        `}
+      >
+
+        {/* ── Header row ── */}
+        <div className="flex items-center gap-2.5 px-3 pt-3 pb-2">
+          {/* icon — doubles as complexity indicator */}
+          <div className={`
+            p-1.5 rounded-lg flex-shrink-0 relative
+            ${complexity ? '' : 'bg-neutral-800'}
+            ${data.complexity === 'low'    ? 'bg-emerald-500/10' : ''}
+            ${data.complexity === 'medium' ? 'bg-amber-500/10'   : ''}
+            ${data.complexity === 'high'   ? 'bg-red-500/10'     : ''}
+          `}>
+            <Code2 size={13} className={`
+              ${data.complexity === 'low'    ? 'text-emerald-400' : ''}
+              ${data.complexity === 'medium' ? 'text-amber-400'   : ''}
+              ${data.complexity === 'high'   ? 'text-red-400'     : ''}
+              ${!data.complexity             ? 'text-neutral-500' : ''}
+            `} />
           </div>
 
-          {isEditingLabel ? (
-            <div className="flex items-center gap-1.5 flex-1" onClick={e => e.stopPropagation()}>
-              <input type="text" value={labelValue} onChange={e => setLabelValue(e.target.value)}
-                onKeyDown={onLabelKey} autoFocus
-                className="bg-neutral-800 text-white text-sm font-mono px-2 py-0.5 rounded-lg border-2 border-emerald-500 focus:outline-none flex-1 min-w-0" />
-              <button onClick={saveLabelEdit} className="p-1 rounded text-emerald-400 hover:bg-emerald-500/15 transition-colors flex-shrink-0"><Check size={12} /></button>
-              <button onClick={cancelLabelEdit} className="p-1 rounded text-neutral-500 hover:text-red-400 transition-colors flex-shrink-0"><X size={12} /></button>
-            </div>
-          ) : (
-            <>
-              <div className="flex-1 min-w-0">
-                <span
-                  className="text-sm font-mono text-neutral-100 truncate block cursor-pointer hover:text-emerald-300 transition-colors"
-                  onDoubleClick={e => { e.stopPropagation(); setIsEditingLabel(true); setLabelValue(data.label); }}
-                  title="Double-click to rename"
+          {/* Function name — inline rename on double-click */}
+          <div className="flex-1 min-w-0">
+            {isEditingLabel ? (
+              <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                <input
+                  type="text"
+                  value={labelValue}
+                  onChange={e => setLabelValue(e.target.value)}
+                  onKeyDown={onKeyDown}
+                  autoFocus
+                  className="flex-1 min-w-0 bg-neutral-800 text-white text-sm font-mono
+                             px-2 py-0.5 rounded-lg border-2 border-emerald-500
+                             focus:outline-none"
+                />
+                <button
+                  onClick={e => { e.stopPropagation(); saveLabel(); }}
+                  className="p-1 rounded text-emerald-400 hover:bg-emerald-500/15 flex-shrink-0"
                 >
-                  {data.label}
-                </span>
-                {/* Inline description preview — always visible */}
-                {hasDesc && !isExpanded && (
-                  <span className="text-[10px] text-neutral-600 block truncate leading-tight mt-0.5">{shortDesc}</span>
-                )}
+                  <Check size={11} />
+                </button>
+                <button
+                  onClick={e => { e.stopPropagation(); cancelLabel(); }}
+                  className="p-1 rounded text-neutral-500 hover:text-red-400 flex-shrink-0"
+                >
+                  <X size={11} />
+                </button>
               </div>
-              <button
-                onClick={e => { e.stopPropagation(); setIsExpanded(v => !v); }}
-                className={`p-1.5 rounded-lg transition-all flex-shrink-0
-                  ${isExpanded ? 'text-emerald-400 bg-emerald-500/15' : 'text-neutral-600 hover:text-neutral-300 hover:bg-neutral-800'}`}
-                title={isExpanded ? 'Collapse' : 'Expand'}
+            ) : (
+              <span
+                className="text-sm font-mono font-semibold text-neutral-100 block truncate
+                           cursor-pointer hover:text-emerald-300 transition-colors"
+                onDoubleClick={e => {
+                  e.stopPropagation();
+                  setIsEditingLabel(true);
+                  setLabelValue(data.label);
+                }}
+                title="Double-click to rename"
               >
-                {isExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-              </button>
-            </>
+                {data.label}
+              </span>
+            )}
+          </div>
+
+          {/* Complexity badge — top right */}
+          {complexity && !isEditingLabel && (
+            <span className={`text-[10px] font-bold uppercase tracking-widest flex-shrink-0 ${complexity.text}`}>
+              {complexity.label}
+            </span>
           )}
         </div>
+
+        {/* ── Description — always visible if it exists ── */}
+        {hasDesc && (
+          <div className="px-3 pb-2.5">
+            <p className="text-[11px] text-neutral-500 leading-relaxed line-clamp-2">
+              {data.description}
+            </p>
+          </div>
+        )}
+
+        {/* ── Footer row — params, return type, tags ── */}
+        {hasExtra && (
+          <div className="px-3 pb-3 pt-0.5 border-t border-neutral-800/80 mt-1 flex flex-wrap items-center gap-1.5">
+
+            {/* return type */}
+            {hasReturnType && (
+              <span className="inline-flex items-center gap-1 text-[10px] text-neutral-500 font-mono">
+                <span className="text-neutral-700">→</span>
+                <span className="text-neutral-400">{data.returns}</span>
+              </span>
+            )}
+
+            {/* spacer */}
+            {hasReturnType && tags.length > 0 && (
+              <span className="text-neutral-800 text-[10px]">·</span>
+            )}
+
+            {/* tags */}
+            {tags.map(tag => (
+              <span
+                key={tag}
+                className="px-1.5 py-0.5 bg-neutral-800 border border-neutral-700
+                           text-[10px] text-neutral-500 rounded-md font-medium"
+              >
+                {tag}
+              </span>
+            ))}
+
+            {/* overflow tag count */}
+            {Array.isArray(data.tags) && data.tags.length > 3 && (
+              <span className="text-[10px] text-neutral-600">
+                +{data.tags.length - 3}
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* ── Click hint — only shown when nothing else is ── */}
+        {!hasDesc && !hasExtra && (
+          <div className="px-3 pb-3">
+            <span className="text-[10px] text-neutral-700 italic">
+              Click to add details
+            </span>
+          </div>
+        )}
       </div>
 
-      {/* Inline expanded description */}
-      {isExpanded && (
-        <div className="mt-1.5 bg-neutral-900 border-2 border-neutral-700 rounded-xl overflow-hidden shadow-xl min-w-[240px] animate-slideUp">
-          <div className="flex items-center justify-between px-3 py-2 bg-neutral-800/80 border-b border-neutral-700/60">
-            <span className="text-[10px] uppercase text-emerald-500 font-bold tracking-widest">Description</span>
-            {!isEditingDesc && (
-              <button onClick={() => { setIsEditingDesc(true); setDescValue(data.description || ''); }}
-                className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium text-neutral-500 hover:text-emerald-400 hover:bg-neutral-700 transition-all">
-                <Edit3 size={10} /><span>Edit</span>
-              </button>
-            )}
-          </div>
-          <div className="px-3 py-2.5">
-            {isEditingDesc ? (
-              <>
-                <textarea value={descValue} onChange={e => setDescValue(e.target.value)} onKeyDown={onDescKey}
-                  autoFocus rows={3} placeholder="Describe what this function does…"
-                  className="w-full bg-neutral-800 text-neutral-100 text-xs px-2.5 py-2 rounded-lg border border-neutral-600 focus:border-emerald-500 focus:outline-none resize-none leading-relaxed placeholder:text-neutral-600" />
-                <div className="flex items-center gap-2 mt-2">
-                  <button onClick={saveDescEdit} className="flex items-center gap-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-lg transition-colors"><Check size={11} /> Save</button>
-                  <button onClick={cancelDescEdit} className="px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs font-medium rounded-lg transition-colors border border-neutral-700">Cancel</button>
-                  <span className="text-[10px] text-neutral-600 ml-auto">Ctrl + Enter</span>
-                </div>
-              </>
-            ) : (
-              <p className={`text-xs leading-relaxed cursor-pointer transition-colors
-                ${hasDesc ? 'text-neutral-400 hover:text-neutral-200' : 'text-neutral-600 italic hover:text-neutral-500'}`}
-                onDoubleClick={() => { setIsEditingDesc(true); setDescValue(data.description || ''); }}
-                title="Double-click to edit, or click node to open full panel">
-                {data.description || 'No description yet — double-click to add one.'}
-              </p>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Handles */}
+      {/* ── Handles ── */}
       {[
-        ['source', Position.Left, 'left'], ['target', Position.Left, 'left-target'],
-        ['source', Position.Right, 'right'], ['target', Position.Right, 'right-target'],
-        ['source', Position.Top, 'top'], ['target', Position.Top, 'top-target'],
-        ['source', Position.Bottom, 'bottom'], ['target', Position.Bottom, 'bottom-target'],
+        ['source', Position.Left,   'left'],
+        ['target', Position.Left,   'left-target'],
+        ['source', Position.Right,  'right'],
+        ['target', Position.Right,  'right-target'],
+        ['source', Position.Top,    'top'],
+        ['target', Position.Top,    'top-target'],
+        ['source', Position.Bottom, 'bottom'],
+        ['target', Position.Bottom, 'bottom-target'],
       ].map(([type, position, hid]) => (
-        <Handle key={hid} type={type} position={position} id={hid}
-          className="!w-2.5 !h-2.5 !bg-emerald-500 !border-2 !border-neutral-900 !rounded-full !shadow-sm !shadow-emerald-500/30"
-          isConnectable={true} />
+        <Handle
+          key={hid}
+          type={type}
+          position={position}
+          id={hid}
+          className="!w-2.5 !h-2.5 !bg-emerald-500/70 !border-2 !border-neutral-900
+                     !rounded-full !shadow-sm"
+          isConnectable={true}
+        />
       ))}
     </div>
   );

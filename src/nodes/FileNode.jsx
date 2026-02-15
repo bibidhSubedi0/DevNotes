@@ -10,6 +10,22 @@ const fileIcons = {
   default:    { icon: FileCode,  color: 'text-indigo-300', bg: 'bg-indigo-500/10', border: 'border-indigo-500/20' },
 };
 
+// ─── Layout constants ────────────────────────────────────────────────────────
+// FunctionNode card is now ~100px tall (header + description + footer).
+// Add 14px gap between cards → 114px per slot.
+const FN_SLOT     = 114;  // height of one function card + gap below it
+const FN_START_Y  = 90;   // y inside FileNode where first function sits
+const FILE_HEADER = 70;   // FileNode header height
+const FILE_PAD    = 24;   // bottom padding
+const FILE_MIN    = 200;  // minimum file node height (empty state)
+
+const fileHeight = (fnCount) =>
+  Math.max(FILE_MIN, FN_START_Y + fnCount * FN_SLOT + FILE_PAD);
+
+const fnY = (index) => FN_START_Y + index * FN_SLOT;
+
+// ────────────────────────────────────────────────────────────────────────────
+
 export default function FileNode({ id, data, selected }) {
   const { setNodes, getNodes } = useReactFlow();
   const fileConfig = fileIcons[data.fileType] || fileIcons.default;
@@ -17,71 +33,78 @@ export default function FileNode({ id, data, selected }) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(data.label);
 
-  // Dynamic height
-  const nodes = getNodes();
-  const childFunctions   = nodes.filter(n => n.parentId === id);
-  const minHeight        = 240;
-  const headerHeight     = 70;
-  const functionHeight   = 65;
-  const padding          = 50;
-  const calculatedHeight = Math.max(minHeight, headerHeight + (childFunctions.length * functionHeight) + padding);
+  const nodes          = getNodes();
+  const childFunctions = nodes.filter(n => n.parentId === id);
+  const calculatedHeight = fileHeight(childFunctions.length);
 
+  // Sync file height + notify parent component whenever child count changes
   useEffect(() => {
     setNodes(nodes => {
       const thisNode = nodes.find(n => n.id === id);
       const parentId = thisNode?.parentId;
       return nodes.map(node => {
-        if (node.id === id) return { ...node, style: { ...node.style, height: calculatedHeight, width: 300 } };
-        if (node.id === parentId) return { ...node, data: { ...node.data, lastUpdate: Date.now() } };
+        if (node.id === id)
+          return { ...node, style: { ...node.style, height: calculatedHeight, width: 300 } };
+        if (node.id === parentId)
+          return { ...node, data: { ...node.data, lastUpdate: Date.now() } };
         return node;
       });
     });
   }, [calculatedHeight, id, setNodes, childFunctions.length]);
 
+  // ── Add function ──
   const addFunction = useCallback((evt) => {
     evt.stopPropagation();
     const newFnId = `fn_${Date.now()}`;
+
     setNodes(nodes => {
-      const currentChildren = nodes.filter(n => n.parentId === id && n.type === 'function');
-      const newCount  = currentChildren.length + 1;
-      const newHeight = Math.max(240, 70 + (newCount * 65) + 50);
-      const newFnY    = 100 + (currentChildren.length * 65);
-      const updated   = nodes.map(node =>
-        node.id === id ? { ...node, style: { ...node.style, height: newHeight, width: 300 } } : node
+      const siblings  = nodes.filter(n => n.parentId === id && n.type === 'function');
+      const newCount  = siblings.length + 1;
+      const newHeight = fileHeight(newCount);
+
+      const updated = nodes.map(node =>
+        node.id === id
+          ? { ...node, style: { ...node.style, height: newHeight, width: 300 } }
+          : node
       );
+
       return [
         ...updated,
         {
-          id: newFnId,
-          type: 'function',
+          id:       newFnId,
+          type:     'function',
           parentId: id,
-          position: { x: 25, y: newFnY },
-          extent: [[0, 65], [300, newHeight]],
+          position: { x: 20, y: fnY(siblings.length) },
+          extent:   [[0, FILE_HEADER], [300, newHeight]],
           draggable: true,
-          data: { label: 'newFunction()', description: 'Add your logic here...' },
+          data: { label: 'newFunction()', description: '' },
         },
       ];
     });
   }, [id, setNodes]);
 
-  const handleSave = () => {
-    if (editValue.trim()) {
-      setNodes(nodes => nodes.map(node => node.id === id ? { ...node, data: { ...node.data, label: editValue.trim() } } : node));
-    }
+  // ── Label editing ──
+  const handleSave   = () => {
+    if (editValue.trim())
+      setNodes(nodes => nodes.map(n => n.id === id ? { ...n, data: { ...n.data, label: editValue.trim() } } : n));
     setIsEditing(false);
   };
   const handleCancel  = () => { setEditValue(data.label); setIsEditing(false); };
   const handleKeyDown = (e) => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') handleCancel(); };
 
-  // Short description preview for canvas
   const hasDesc   = Boolean(data.description?.trim());
   const shortDesc = data.description?.length > 44 ? data.description.slice(0, 42) + '…' : data.description;
 
   return (
     <div
-      className={`relative min-w-[300px] bg-gradient-to-br from-blue-900 via-blue-950 to-indigo-950
+      className={`
+        relative min-w-[300px]
+        bg-gradient-to-br from-blue-900 via-blue-950 to-indigo-950
         border-2 rounded-xl transition-all shadow-2xl group overflow-hidden
-        ${selected ? 'border-blue-400 shadow-blue-500/40 ring-4 ring-blue-500/30' : 'border-blue-600 hover:border-blue-500'}`}
+        ${selected
+          ? 'border-blue-400 shadow-blue-500/40 ring-4 ring-blue-500/30'
+          : 'border-blue-600 hover:border-blue-500'}
+      `}
       style={{ height: `${calculatedHeight}px`, width: '300px' }}
     >
       <div className={`absolute inset-0 ${fileConfig.bg} opacity-0 group-hover:opacity-30 transition-opacity duration-300 pointer-events-none`} />
@@ -99,7 +122,7 @@ export default function FileNode({ id, data, selected }) {
                   onKeyDown={handleKeyDown} autoFocus
                   className="bg-blue-800 text-white text-sm font-bold px-2 py-1 rounded border-2 border-blue-400 focus:outline-none w-full"
                   onClick={e => e.stopPropagation()} />
-                <button onClick={handleSave} className="p-1 hover:bg-green-500/20 rounded text-green-400"><Check size={14} /></button>
+                <button onClick={handleSave}   className="p-1 hover:bg-green-500/20 rounded text-green-400"><Check size={14} /></button>
                 <button onClick={handleCancel} className="p-1 hover:bg-red-500/20 rounded text-red-400"><X size={14} /></button>
               </div>
             ) : (
@@ -109,7 +132,6 @@ export default function FileNode({ id, data, selected }) {
                   <span className="text-[10px] uppercase text-blue-300 font-semibold tracking-wider">
                     {data.fileType || 'file'}
                   </span>
-                  {/* Description preview */}
                   {hasDesc && (
                     <>
                       <span className="text-blue-700">·</span>
@@ -143,14 +165,14 @@ export default function FileNode({ id, data, selected }) {
       )}
 
       {/* Handles */}
-      <Handle type="source" position={Position.Top}    id="top"          className="!w-24 !h-2 !bg-gradient-to-r from-transparent via-blue-400 to-transparent !rounded-full !-top-1 !border-none !shadow-sm !shadow-blue-500/20" isConnectable={true} />
-      <Handle type="target" position={Position.Top}    id="top-target"   className="!w-24 !h-2 !bg-gradient-to-r from-transparent via-blue-400 to-transparent !rounded-full !-top-1 !border-none !shadow-sm !shadow-blue-500/20" isConnectable={true} />
-      <Handle type="source" position={Position.Bottom} id="bottom"       className="!w-24 !h-2 !bg-gradient-to-r from-transparent via-blue-400 to-transparent !rounded-full !-bottom-1 !border-none !shadow-sm !shadow-blue-500/20" isConnectable={true} />
+      <Handle type="source" position={Position.Top}    id="top"           className="!w-24 !h-2 !bg-gradient-to-r from-transparent via-blue-400 to-transparent !rounded-full !-top-1 !border-none !shadow-sm !shadow-blue-500/20" isConnectable={true} />
+      <Handle type="target" position={Position.Top}    id="top-target"    className="!w-24 !h-2 !bg-gradient-to-r from-transparent via-blue-400 to-transparent !rounded-full !-top-1 !border-none !shadow-sm !shadow-blue-500/20" isConnectable={true} />
+      <Handle type="source" position={Position.Bottom} id="bottom"        className="!w-24 !h-2 !bg-gradient-to-r from-transparent via-blue-400 to-transparent !rounded-full !-bottom-1 !border-none !shadow-sm !shadow-blue-500/20" isConnectable={true} />
       <Handle type="target" position={Position.Bottom} id="bottom-target" className="!w-24 !h-2 !bg-gradient-to-r from-transparent via-blue-400 to-transparent !rounded-full !-bottom-1 !border-none !shadow-sm !shadow-blue-500/20" isConnectable={true} />
-      <Handle type="source" position={Position.Left}   id="left"         className="!w-2 !h-16 !bg-gradient-to-b from-transparent via-indigo-400 to-transparent !rounded-full !-left-1 !border-none !shadow-sm !shadow-indigo-500/20" isConnectable={true} />
-      <Handle type="target" position={Position.Left}   id="left-target"  className="!w-2 !h-16 !bg-gradient-to-b from-transparent via-indigo-400 to-transparent !rounded-full !-left-1 !border-none !shadow-sm !shadow-indigo-500/20" isConnectable={true} />
-      <Handle type="source" position={Position.Right}  id="right"        className="!w-2 !h-16 !bg-gradient-to-b from-transparent via-indigo-400 to-transparent !rounded-full !-right-1 !border-none !shadow-sm !shadow-indigo-500/20" isConnectable={true} />
-      <Handle type="target" position={Position.Right}  id="right-target" className="!w-2 !h-16 !bg-gradient-to-b from-transparent via-indigo-400 to-transparent !rounded-full !-right-1 !border-none !shadow-sm !shadow-indigo-500/20" isConnectable={true} />
+      <Handle type="source" position={Position.Left}   id="left"          className="!w-2 !h-16 !bg-gradient-to-b from-transparent via-indigo-400 to-transparent !rounded-full !-left-1 !border-none !shadow-sm !shadow-indigo-500/20" isConnectable={true} />
+      <Handle type="target" position={Position.Left}   id="left-target"   className="!w-2 !h-16 !bg-gradient-to-b from-transparent via-indigo-400 to-transparent !rounded-full !-left-1 !border-none !shadow-sm !shadow-indigo-500/20" isConnectable={true} />
+      <Handle type="source" position={Position.Right}  id="right"         className="!w-2 !h-16 !bg-gradient-to-b from-transparent via-indigo-400 to-transparent !rounded-full !-right-1 !border-none !shadow-sm !shadow-indigo-500/20" isConnectable={true} />
+      <Handle type="target" position={Position.Right}  id="right-target"  className="!w-2 !h-16 !bg-gradient-to-b from-transparent via-indigo-400 to-transparent !rounded-full !-right-1 !border-none !shadow-sm !shadow-indigo-500/20" isConnectable={true} />
     </div>
   );
 }

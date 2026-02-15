@@ -84,8 +84,9 @@ export const calculateFilePosition = (childFiles) => {
  * Calculate position for new Function inside File
  */
 export const calculateFunctionPosition = (childFunctions) => {
-  const baseY = 65;
-  const spacing = 45;
+  // Must match FN_START_Y and FN_SLOT in FileNode.jsx
+  const baseY   = 90;
+  const spacing = 114;
   return { x: 20, y: baseY + (childFunctions.length * spacing) };
 };
 

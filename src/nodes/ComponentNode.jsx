@@ -2,6 +2,15 @@ import { Handle, Position, useReactFlow } from '@xyflow/react';
 import { Cpu, Plus, Check, X } from 'lucide-react';
 import { useState, useEffect, useMemo, useRef } from 'react';
 
+// ── Layout constants — must stay in sync with FileNode.jsx ──────────────────
+const FN_SLOT    = 114;   // height of one function card + gap
+const FN_START_Y = 90;    // y of first function inside a file node
+const FILE_PAD   = 24;    // bottom padding inside file node
+const FILE_MIN   = 200;   // minimum file node height
+const calcFileHeight = (fnCount) =>
+  Math.max(FILE_MIN, FN_START_Y + fnCount * FN_SLOT + FILE_PAD);
+// ────────────────────────────────────────────────────────────────────────────
+
 const validateNodeLabel = (label) => {
   const trimmed = label.trim();
   if (!trimmed) return { valid: false, error: 'Label cannot be empty' };
@@ -25,7 +34,7 @@ export default function ComponentNode({ id, data, selected }) {
     let currentY = 95;
     return childFiles.map(file => {
       const fileFunctions = nodes.filter(n => n.parentId === file.id);
-      const fileHeight = Math.max(240, 70 + (fileFunctions.length * 65) + 50);
+      const fileHeight = calcFileHeight(fileFunctions.length);
       const position = { id: file.id, y: currentY, height: fileHeight };
       currentY += fileHeight + 30;
       return position;
@@ -75,7 +84,7 @@ export default function ComponentNode({ id, data, selected }) {
           extent: [[0, 0], [calculatedWidth, newHeight]],
           position: { x: 25, y: yPosition },
           data: { label: 'NewFile.ts', fileType: 'typescript' },
-          style: { width: 300, height: 240 },
+          style: { width: 300, height: FILE_MIN },
         },
       ];
     });
