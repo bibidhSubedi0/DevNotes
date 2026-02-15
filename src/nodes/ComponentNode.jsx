@@ -1,172 +1,247 @@
 import { Handle, Position, useReactFlow } from '@xyflow/react';
 import { Cpu, Plus, Check, X } from 'lucide-react';
 import { useState, useEffect, useMemo, useRef } from 'react';
+import {
+  FILE_W, FILE_GAP_H, FILE_GAP_V, FILE_COLLAPSED_H,
+  COMP_HEADER_H, COMP_PAD_H, COMP_MIN_W,
+  calcNumCols, layoutFiles,
+} from '../utils/layoutConstants';
 
-// ── Layout constants — must stay in sync with FileNode.jsx ──────────────────
-const FN_SLOT    = 114;   // height of one function card + gap
-const FN_START_Y = 90;    // y of first function inside a file node
-const FILE_PAD   = 24;    // bottom padding inside file node
-const FILE_MIN   = 200;   // minimum file node height
-const calcFileHeight = (fnCount) =>
-  Math.max(FILE_MIN, FN_START_Y + fnCount * FN_SLOT + FILE_PAD);
-// ────────────────────────────────────────────────────────────────────────────
-
-const validateNodeLabel = (label) => {
-  const trimmed = label.trim();
-  if (!trimmed) return { valid: false, error: 'Label cannot be empty' };
-  if (trimmed.length > 50) return { valid: false, error: 'Label too long (max 50 characters)' };
-  if (/<script|javascript:/i.test(trimmed)) return { valid: false, error: 'Invalid characters detected' };
-  return { valid: true, sanitized: trimmed };
+const validateLabel = (label) => {
+  const t = label.trim();
+  if (!t)            return { valid: false, error: 'Cannot be empty' };
+  if (t.length > 50) return { valid: false, error: 'Max 50 characters' };
+  return { valid: true, sanitized: t };
 };
 
 export default function ComponentNode({ id, data, selected }) {
   const { setNodes, getNodes } = useReactFlow();
-  const [isEditing, setIsEditing] = useState(false);
-  const [editValue, setEditValue] = useState(data.label);
+  const [isEditing, setIsEditing]             = useState(false);
+  const [editValue, setEditValue]             = useState(data.label);
   const [validationError, setValidationError] = useState('');
-  const lastUpdateRef = useRef({ height: 0, width: 0, fileCount: 0, functionCount: 0 });
+  const [dragWidth, setDragWidth]             = useState(null);
+  const lastSigRef = useRef('');
 
-  const nodes = getNodes();
-  const childFiles = nodes.filter(n => n.parentId === id && n.type === 'file');
-  const totalFunctionCount = childFiles.reduce((sum, file) => sum + nodes.filter(n => n.parentId === file.id).length, 0);
+  // Width lives in data.width — always readable as a prop, never undefined
+  const savedWidth   = Math.max(COMP_MIN_W, data.width ?? COMP_MIN_W);
+  const currentWidth = dragWidth ?? savedWidth;
 
-  const filePositions = useMemo(() => {
-    let currentY = 95;
-    return childFiles.map(file => {
-      const fileFunctions = nodes.filter(n => n.parentId === file.id);
-      const fileHeight = calcFileHeight(fileFunctions.length);
-      const position = { id: file.id, y: currentY, height: fileHeight };
-      currentY += fileHeight + 30;
-      return position;
-    });
-  }, [childFiles.length, totalFunctionCount]);
+  const allNodes   = getNodes();
+  const childFiles = allNodes.filter(n => n.parentId === id && n.type === 'file');
 
-  let totalHeight = 100;
-  filePositions.forEach(pos => { totalHeight += pos.height + 30; });
-  const calculatedHeight = Math.max(300, totalHeight);
-  const calculatedWidth  = 400;
+  const sig = `${Math.round(savedWidth)}|` + childFiles.map(f => {
+    const fnCount   = allNodes.filter(n => n.parentId === f.id && n.type === 'function').length;
+    const collapsed = f.data?.collapsed === true ? 'c' : 'e';
+    return `${f.id}:${collapsed}:${fnCount}`;
+  }).join('|');
 
+  const { positions, compHeight } = useMemo(
+    () => layoutFiles(childFiles, allNodes, currentWidth),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [sig, currentWidth]
+  );
+
+  // Sync file positions + component height when layout changes
   useEffect(() => {
-    const last = lastUpdateRef.current;
-    if (last.height === calculatedHeight && last.width === calculatedWidth &&
-        last.fileCount === childFiles.length && last.functionCount === totalFunctionCount) return;
-
-    lastUpdateRef.current = { height: calculatedHeight, width: calculatedWidth, fileCount: childFiles.length, functionCount: totalFunctionCount };
+    if (lastSigRef.current === sig) return;
+    lastSigRef.current = sig;
 
     setNodes(nodes => {
-      const posMap = new Map(filePositions.map(p => [p.id, p]));
+      const posMap = new Map(positions.map(p => [p.id, p]));
       return nodes.map(node => {
-        if (node.id === id) return { ...node, style: { ...node.style, width: calculatedWidth, height: calculatedHeight } };
+        if (node.id === id)
+          return { ...node, style: { ...node.style, width: savedWidth, height: compHeight } };
+
         if (node.parentId === id && node.type === 'file') {
           const pos = posMap.get(node.id);
-          if (pos) return { ...node, position: { ...node.position, y: pos.y }, style: { ...node.style, height: pos.height }, extent: [[0, 0], [calculatedWidth, calculatedHeight]] };
+          if (!pos) return node;
+          return {
+            ...node,
+            position: { x: pos.x, y: pos.y },
+            style:    { ...node.style, width: FILE_W, height: pos.height },
+            extent:   [[0, 0], [savedWidth, compHeight]],
+          };
         }
         return node;
       });
     });
-  }, [calculatedHeight, calculatedWidth, childFiles.length, totalFunctionCount, id, setNodes, filePositions]);
+  }, [sig, positions, compHeight, savedWidth, id, setNodes]);
 
+  // ── Resize handle — native capture listener so ReactFlow can't intercept ──
+  const resizeHandleRef = useRef(null);
+  const savedWidthRef   = useRef(savedWidth);
+  const setNodesRef     = useRef(setNodes);
+  savedWidthRef.current = savedWidth;
+  setNodesRef.current   = setNodes;
+
+  useEffect(() => {
+    const handle = resizeHandleRef.current;
+    if (!handle) return;
+
+    const onMouseDown = (e) => {
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      e.preventDefault();
+
+      const startX     = e.clientX;
+      const startWidth = savedWidthRef.current;
+
+      const onMove = (moveE) => {
+        const w = Math.max(COMP_MIN_W, Math.min(1800, startWidth + (moveE.clientX - startX)));
+        setDragWidth(Math.round(w));   // local state = instant visual update
+      };
+
+      const onUp = (upE) => {
+        const finalW = Math.max(COMP_MIN_W, Math.min(1800, startWidth + (upE.clientX - startX)));
+        // Persist into data.width on release
+        setNodesRef.current(nodes => nodes.map(n =>
+          n.id === id
+            ? {
+                ...n,
+                data:  { ...n.data,  width: Math.round(finalW) },
+                style: { ...n.style, width: Math.round(finalW) },
+              }
+            : n
+        ));
+        setDragWidth(null);
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup',   onUp);
+      };
+
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup',   onUp);
+    };
+
+    handle.addEventListener('mousedown', onMouseDown, { capture: true });
+    return () => handle.removeEventListener('mousedown', onMouseDown, { capture: true });
+  }, [id]);
+
+  // ── Add file ──
   const addFile = (evt) => {
     evt.stopPropagation();
-    const newFileId = `file_${Date.now()}`;
-    let yPosition = 95;
-    filePositions.forEach(pos => { yPosition = pos.y + pos.height + 30; });
-    const newHeight = Math.max(300, calculatedHeight + 270);
-
-    setNodes(nodes => {
-      const updatedNodes = nodes.map(node =>
-        node.id === id ? { ...node, style: { ...node.style, height: newHeight } } : node
-      );
-      return [
-        ...updatedNodes,
-        {
-          id: newFileId, type: 'file', parentId: id,
-          extent: [[0, 0], [calculatedWidth, newHeight]],
-          position: { x: 25, y: yPosition },
-          data: { label: 'NewFile.ts', fileType: 'typescript' },
-          style: { width: 300, height: FILE_MIN },
-        },
-      ];
-    });
+    setNodes(nodes => [
+      ...nodes,
+      {
+        id:       `file_${Date.now()}`,
+        type:     'file',
+        parentId: id,
+        extent:   [[0, 0], [currentWidth, compHeight + 300]],
+        position: { x: COMP_PAD_H, y: COMP_HEADER_H + FILE_GAP_V },
+        data:     { label: 'NewFile.ts', fileType: 'typescript' },
+        style:    { width: FILE_W, height: 130 },
+      },
+    ]);
   };
 
+  // ── Label edit ──
   const handleSave = () => {
-    const validation = validateNodeLabel(editValue);
-    if (!validation.valid) { setValidationError(validation.error); return; }
+    const v = validateLabel(editValue);
+    if (!v.valid) { setValidationError(v.error); return; }
     setValidationError('');
-    setNodes(nodes => nodes.map(node => node.id === id ? { ...node, data: { ...node.data, label: validation.sanitized } } : node));
+    setNodes(nodes => nodes.map(n =>
+      n.id === id ? { ...n, data: { ...n.data, label: v.sanitized } } : n
+    ));
     setIsEditing(false);
   };
   const handleCancel  = () => { setEditValue(data.label); setValidationError(''); setIsEditing(false); };
   const handleKeyDown = (e) => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') handleCancel(); };
 
-  // Description preview
-  const hasDesc   = Boolean(data.description?.trim());
-  const shortDesc = data.description?.length > 50 ? data.description.slice(0, 48) + '…' : data.description;
+  const totalFns = allNodes.filter(
+    n => n.type === 'function' && childFiles.some(f => f.id === n.parentId)
+  ).length;
+  const numCols = calcNumCols(currentWidth);
 
   return (
     <div
-      className={`relative bg-gradient-to-br from-slate-800 via-slate-900 to-cyan-950
-        border-2 rounded-xl transition-all shadow-2xl group overflow-visible
-        ${selected ? 'border-cyan-400 shadow-cyan-500/30 ring-4 ring-cyan-500/20' : 'border-cyan-700 hover:border-cyan-500'}`}
-      style={{ width: `${calculatedWidth}px`, height: `${calculatedHeight}px` }}
+      className={`
+        relative bg-gradient-to-br from-slate-800 via-slate-900 to-cyan-950
+        border-2 rounded-xl shadow-2xl overflow-visible
+        transition-[border-color,box-shadow] duration-150
+        ${selected
+          ? 'border-cyan-400 shadow-cyan-500/30 ring-4 ring-cyan-500/15'
+          : 'border-cyan-800 hover:border-cyan-700'}
+      `}
+      style={{ width: `${currentWidth}px`, height: `${compHeight}px` }}
     >
-      {/* Header */}
-      <div className="relative flex items-center justify-between px-4 py-3 bg-slate-950/70 border-b border-cyan-900/60 backdrop-blur-sm pointer-events-auto z-10">
+
+      {/* ── Right-edge resize handle ── */}
+      <div
+        ref={resizeHandleRef}
+        className="nodrag nopan absolute top-0 right-0 w-4 h-full z-50 cursor-ew-resize
+                   flex items-center justify-end group/handle"
+        title="Drag to resize"
+      >
+        <div className="w-0.5 h-full bg-cyan-900/50 group-hover/handle:bg-cyan-600/60 transition-colors" />
+        <div className="absolute top-1/2 -translate-y-1/2 right-0.5 w-1 h-8 rounded-full
+                        bg-cyan-700/60 group-hover/handle:bg-cyan-400 group-hover/handle:h-12
+                        transition-all duration-150" />
+      </div>
+
+      {/* ── Header ── */}
+      <div className="flex items-center justify-between px-4 py-3
+                      bg-slate-950/70 border-b border-cyan-900/50 backdrop-blur-sm
+                      pointer-events-auto z-10 relative rounded-t-xl">
         <div className="flex items-center gap-2.5 flex-1 min-w-0">
           <div className="p-1.5 bg-cyan-500/15 rounded-lg flex-shrink-0">
-            <Cpu size={16} className="text-cyan-300" />
+            <Cpu size={15} className="text-cyan-300" />
           </div>
           <div className="flex-1 min-w-0">
             {isEditing ? (
               <div>
                 <div className="flex items-center gap-1">
-                  <input type="text" value={editValue} onChange={e => setEditValue(e.target.value)}
+                  <input
+                    type="text" value={editValue}
+                    onChange={e => setEditValue(e.target.value)}
                     onKeyDown={handleKeyDown} autoFocus
-                    className="bg-slate-800 text-white text-sm font-bold px-2 py-1 rounded border-2 border-cyan-400 focus:outline-none w-full"
-                    onClick={e => e.stopPropagation()} />
-                  <button onClick={handleSave}   className="p-1 hover:bg-green-500/20 rounded text-green-400"><Check size={14} /></button>
-                  <button onClick={handleCancel} className="p-1 hover:bg-red-500/20 rounded text-red-400"><X size={14} /></button>
+                    className="bg-slate-800 text-white text-sm font-bold px-2 py-1 rounded
+                               border-2 border-cyan-400 focus:outline-none w-full"
+                    onClick={e => e.stopPropagation()}
+                  />
+                  <button onClick={handleSave}   className="p-1 text-green-400 hover:bg-green-500/20 rounded flex-shrink-0"><Check size={13} /></button>
+                  <button onClick={handleCancel} className="p-1 text-red-400   hover:bg-red-500/20   rounded flex-shrink-0"><X size={13} /></button>
                 </div>
-                {validationError && <div className="text-xs text-red-400 mt-1">{validationError}</div>}
+                {validationError && <p className="text-xs text-red-400 mt-1">{validationError}</p>}
               </div>
             ) : (
-              <div onDoubleClick={e => { e.stopPropagation(); setIsEditing(true); }} className="cursor-pointer">
-                <span className="text-base font-bold text-white tracking-tight">{data.label}</span>
-                <div className="flex items-center gap-1.5 mt-0.5">
-                  <span className="text-[10px] uppercase text-cyan-400 font-semibold tracking-wider">Component</span>
-                  {/* Description preview */}
-                  {hasDesc && (
-                    <>
-                      <span className="text-cyan-800">·</span>
-                      <span className="text-[10px] text-cyan-600/80 truncate max-w-[160px]">{shortDesc}</span>
-                    </>
-                  )}
+              <div className="cursor-pointer" onDoubleClick={e => { e.stopPropagation(); setIsEditing(true); }}>
+                <span className="text-sm font-bold text-white tracking-tight">{data.label}</span>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span className="text-[10px] uppercase text-cyan-500 font-semibold tracking-wider">Component</span>
+                  <span className="text-[10px] text-neutral-600">{childFiles.length} files · {totalFns} fn</span>
+                  {numCols > 1 && <span className="text-[10px] text-cyan-700">{numCols} cols</span>}
                 </div>
               </div>
             )}
           </div>
         </div>
 
-        {!isEditing && (
-          <button onClick={addFile}
-            className="px-3 py-2 hover:bg-cyan-500/15 rounded-lg text-cyan-300 hover:text-cyan-200 transition-all active:scale-90 border border-transparent hover:border-cyan-700/50 flex-shrink-0 flex items-center gap-1.5"
-            title="Add File">
-            <Plus size={16} />
-            <span className="text-xs font-semibold">Add File</span>
-          </button>
-        )}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {dragWidth ? (
+            <span className="text-[10px] text-cyan-500 font-mono">{currentWidth}px</span>
+          ) : selected ? (
+            <span className="text-[10px] text-neutral-700 select-none">drag right edge</span>
+          ) : null}
+          {!isEditing && (
+            <button onClick={addFile}
+              className="px-2.5 py-1.5 hover:bg-cyan-500/15 rounded-lg text-cyan-400
+                         hover:text-cyan-200 transition-all active:scale-90 flex items-center
+                         gap-1.5 border border-transparent hover:border-cyan-800/50">
+              <Plus size={14} />
+              <span className="text-xs font-semibold">File</span>
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Handles */}
-      <Handle type="source" position={Position.Top}    id="top"           className="!w-24 !h-2 !bg-gradient-to-r from-transparent via-cyan-400 to-transparent !rounded-full !-top-1 !border-none !shadow-sm !shadow-cyan-500/20" isConnectable={true} />
-      <Handle type="target" position={Position.Top}    id="top-target"    className="!w-24 !h-2 !bg-gradient-to-r from-transparent via-cyan-400 to-transparent !rounded-full !-top-1 !border-none !shadow-sm !shadow-cyan-500/20" isConnectable={true} />
-      <Handle type="source" position={Position.Bottom} id="bottom"        className="!w-24 !h-2 !bg-gradient-to-r from-transparent via-cyan-400 to-transparent !rounded-full !-bottom-1 !border-none !shadow-sm !shadow-cyan-500/20" isConnectable={true} />
-      <Handle type="target" position={Position.Bottom} id="bottom-target" className="!w-24 !h-2 !bg-gradient-to-r from-transparent via-cyan-400 to-transparent !rounded-full !-bottom-1 !border-none !shadow-sm !shadow-cyan-500/20" isConnectable={true} />
-      <Handle type="source" position={Position.Left}   id="left"          className="!w-2 !h-16 !bg-gradient-to-b from-transparent via-teal-400 to-transparent !rounded-full !-left-1 !border-none !shadow-sm !shadow-teal-500/20" isConnectable={true} />
-      <Handle type="target" position={Position.Left}   id="left-target"   className="!w-2 !h-16 !bg-gradient-to-b from-transparent via-teal-400 to-transparent !rounded-full !-left-1 !border-none !shadow-sm !shadow-teal-500/20" isConnectable={true} />
-      <Handle type="source" position={Position.Right}  id="right"         className="!w-2 !h-16 !bg-gradient-to-b from-transparent via-teal-400 to-transparent !rounded-full !-right-1 !border-none !shadow-sm !shadow-teal-500/20" isConnectable={true} />
-      <Handle type="target" position={Position.Right}  id="right-target"  className="!w-2 !h-16 !bg-gradient-to-b from-transparent via-teal-400 to-transparent !rounded-full !-right-1 !border-none !shadow-sm !shadow-teal-500/20" isConnectable={true} />
+      {/* ── Handles ── */}
+      <Handle type="source" position={Position.Top}    id="top"           className="!w-20 !h-2 !bg-gradient-to-r from-transparent via-cyan-400 to-transparent !rounded-full !-top-1 !border-none" isConnectable={true} />
+      <Handle type="target" position={Position.Top}    id="top-target"    className="!w-20 !h-2 !bg-gradient-to-r from-transparent via-cyan-400 to-transparent !rounded-full !-top-1 !border-none" isConnectable={true} />
+      <Handle type="source" position={Position.Bottom} id="bottom"        className="!w-20 !h-2 !bg-gradient-to-r from-transparent via-cyan-400 to-transparent !rounded-full !-bottom-1 !border-none" isConnectable={true} />
+      <Handle type="target" position={Position.Bottom} id="bottom-target" className="!w-20 !h-2 !bg-gradient-to-r from-transparent via-cyan-400 to-transparent !rounded-full !-bottom-1 !border-none" isConnectable={true} />
+      <Handle type="source" position={Position.Left}   id="left"          className="!w-2 !h-14 !bg-gradient-to-b from-transparent via-teal-400 to-transparent !rounded-full !-left-1 !border-none" isConnectable={true} />
+      <Handle type="target" position={Position.Left}   id="left-target"   className="!w-2 !h-14 !bg-gradient-to-b from-transparent via-teal-400 to-transparent !rounded-full !-left-1 !border-none" isConnectable={true} />
+      <Handle type="source" position={Position.Right}  id="right"         className="!w-2 !h-14 !bg-gradient-to-b from-transparent via-teal-400 to-transparent !rounded-full !-right-1 !border-none" isConnectable={true} />
+      <Handle type="target" position={Position.Right}  id="right-target"  className="!w-2 !h-14 !bg-gradient-to-b from-transparent via-teal-400 to-transparent !rounded-full !-right-1 !border-none" isConnectable={true} />
     </div>
   );
 }

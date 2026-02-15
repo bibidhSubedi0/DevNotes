@@ -50,7 +50,7 @@ export const createFileNode = (parentId, position, existingNodes) => {
     extent: 'parent',
     position,
     data: { label: 'NewFile.ts', fileType: FILE_TYPES.TYPESCRIPT },
-    style: { width: NODE_SIZES.FILE.width },
+    style: { width: 280, height: 130 },
   };
 };
 
@@ -84,10 +84,9 @@ export const calculateFilePosition = (childFiles) => {
  * Calculate position for new Function inside File
  */
 export const calculateFunctionPosition = (childFunctions) => {
-  // Must match FN_START_Y and FN_SLOT in FileNode.jsx
-  const baseY   = 90;
-  const spacing = 114;
-  return { x: 20, y: baseY + (childFunctions.length * spacing) };
+  const baseY   = 62;   // FN_START_Y
+  const spacing = 52;   // FN_SLOT
+  return { x: 16, y: baseY + (childFunctions.length * spacing) };
 };
 
 /**
