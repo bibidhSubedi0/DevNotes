@@ -2,25 +2,19 @@
 
 /* Custom animations */
 @keyframes slideInUp {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes slideUp {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Detail panel slide-in */
+@keyframes slideInFromRight {
+  from { opacity: 0; transform: translateX(24px); }
+  to   { opacity: 1; transform: translateX(0); }
 }
 
 .animate-slideUp {
@@ -28,12 +22,8 @@
 }
 
 @keyframes pulse-slow {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.7;
-  }
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.7; }
 }
 
 /* React Flow custom styling */
@@ -106,26 +96,22 @@
 }
 
 /* Scrollbar styling */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: rgba(38, 38, 38, 0.5);
-}
-
-::-webkit-scrollbar-thumb {
-  background: rgba(115, 115, 115, 0.8);
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(163, 163, 163, 0.9);
-}
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track  { background: rgba(38, 38, 38, 0.5); }
+::-webkit-scrollbar-thumb  { background: rgba(115, 115, 115, 0.8); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(163, 163, 163, 0.9); }
 
 /* Custom focus styles */
 button:focus-visible {
   outline: 2px solid rgba(99, 102, 241, 0.5);
   outline-offset: 2px;
+}
+
+/* line-clamp utility (Tailwind v4 compat) */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
