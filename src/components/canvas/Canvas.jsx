@@ -1,7 +1,8 @@
 import React from 'react';
-import { ReactFlow, Background, Controls, MiniMap } from '@xyflow/react';
+import { ReactFlow, Background, MiniMap } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { REACT_FLOW_CONFIG, BACKGROUND_CONFIG, MINIMAP_CONFIG, NODE_COLORS } from '../../utils/constants';
+import { ZoomControls } from '../Panels/ZoomControls';
 
 export const Canvas = ({
   nodes,
@@ -25,12 +26,21 @@ export const Canvas = ({
         onPaneClick={onPaneClick}
         nodeTypes={nodeTypes}
         fitView
+        fitViewOptions={{ padding: 0.08, duration: 400 }}
         colorMode={REACT_FLOW_CONFIG.colorMode}
         className="react-flow-custom"
         connectionRadius={REACT_FLOW_CONFIG.connectionRadius}
         snapToGrid={REACT_FLOW_CONFIG.snapToGrid}
         snapGrid={REACT_FLOW_CONFIG.snapGrid}
         defaultEdgeOptions={{ type: REACT_FLOW_CONFIG.defaultEdgeType }}
+        // Zoom bounds — prevents getting lost at extreme zoom levels
+        minZoom={0.1}
+        maxZoom={2}
+        // Smooth, controlled scroll zoom
+        zoomOnScroll={true}
+        zoomOnPinch={true}
+        panOnScroll={false}
+        zoomOnDoubleClick={false}
       >
         <Background
           color={BACKGROUND_CONFIG.color}
@@ -38,10 +48,15 @@ export const Canvas = ({
           gap={BACKGROUND_CONFIG.gap}
           size={BACKGROUND_CONFIG.size}
         />
-        <Controls showInteractive={false} />
+
+        {/* Custom zoom controls — replaces the clunky default <Controls> */}
+        <ZoomControls />
+
         <MiniMap
           nodeColor={(node) => NODE_COLORS[node.type]?.primary || '#525252'}
           maskColor={MINIMAP_CONFIG.maskColor}
+          zoomable
+          pannable
         />
       </ReactFlow>
     </div>
