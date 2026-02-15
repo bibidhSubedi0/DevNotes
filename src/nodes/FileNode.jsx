@@ -3,12 +3,28 @@ import { FileCode, Plus, Code2, FileJson, FileType, FileText, Check, X } from 'l
 import { useCallback, useState, useEffect } from 'react';
 
 const fileIcons = {
-  typescript: { icon: FileType, color: 'text-blue-300', bg: 'bg-blue-500/10', border: 'border-blue-500/20' },
-  javascript: { icon: FileJson, color: 'text-yellow-300', bg: 'bg-yellow-500/10', border: 'border-yellow-500/20' },
-  react: { icon: Code2, color: 'text-cyan-300', bg: 'bg-cyan-500/10', border: 'border-cyan-500/20' },
-  python: { icon: FileText, color: 'text-green-300', bg: 'bg-green-500/10', border: 'border-green-500/20' },
-  default: { icon: FileCode, color: 'text-indigo-300', bg: 'bg-indigo-500/10', border: 'border-indigo-500/20' },
+  typescript: { icon: FileType,  color: 'text-blue-300',   bg: 'bg-blue-500/10',   border: 'border-blue-500/20' },
+  javascript: { icon: FileJson,  color: 'text-yellow-300', bg: 'bg-yellow-500/10', border: 'border-yellow-500/20' },
+  react:      { icon: Code2,     color: 'text-cyan-300',   bg: 'bg-cyan-500/10',   border: 'border-cyan-500/20' },
+  python:     { icon: FileText,  color: 'text-green-300',  bg: 'bg-green-500/10',  border: 'border-green-500/20' },
+  default:    { icon: FileCode,  color: 'text-indigo-300', bg: 'bg-indigo-500/10', border: 'border-indigo-500/20' },
 };
+
+// ─── Layout constants ────────────────────────────────────────────────────────
+// FunctionNode card is now ~100px tall (header + description + footer).
+// Add 14px gap between cards → 114px per slot.
+const FN_SLOT     = 114;  // height of one function card + gap below it
+const FN_START_Y  = 90;   // y inside FileNode where first function sits
+const FILE_HEADER = 70;   // FileNode header height
+const FILE_PAD    = 24;   // bottom padding
+const FILE_MIN    = 200;  // minimum file node height (empty state)
+
+const fileHeight = (fnCount) =>
+  Math.max(FILE_MIN, FN_START_Y + fnCount * FN_SLOT + FILE_PAD);
+
+const fnY = (index) => FN_START_Y + index * FN_SLOT;
+
+// ────────────────────────────────────────────────────────────────────────────
 
 export default function FileNode({ id, data, selected }) {
   const { setNodes, getNodes } = useReactFlow();
@@ -17,134 +33,83 @@ export default function FileNode({ id, data, selected }) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(data.label);
 
-  // Calculate dynamic height based on number of child functions
-  const nodes = getNodes();
+  const nodes          = getNodes();
   const childFunctions = nodes.filter(n => n.parentId === id);
-  const minHeight = 240;
-  const headerHeight = 70;
-  const functionHeight = 65;
-  const padding = 50;
-  const calculatedHeight = Math.max(minHeight, headerHeight + (childFunctions.length * functionHeight) + padding);
+  const calculatedHeight = fileHeight(childFunctions.length);
 
-// Update file height when function count changes
-useEffect(() => {
-  setNodes((nodes) => {
-    const thisNode = nodes.find(n => n.id === id);
-    const parentId = thisNode?.parentId;
-    
-    return nodes.map((node) => {
-      if (node.id === id) {
-        return { 
-          ...node, 
-          style: { ...node.style, height: calculatedHeight, width: 300 }
-        };
-      }
-      // CRITICAL: Trigger parent component to recalculate positions
-      if (node.id === parentId) {
-        return { 
-          ...node, 
-          data: { 
-            ...node.data, 
-            lastUpdate: Date.now(), // This triggers ComponentNode's useEffect
-            childrenUpdate: Date.now() // Add this extra trigger
-          } 
-        };
-      }
-      return node;
+  // Sync file height + notify parent component whenever child count changes
+  useEffect(() => {
+    setNodes(nodes => {
+      const thisNode = nodes.find(n => n.id === id);
+      const parentId = thisNode?.parentId;
+      return nodes.map(node => {
+        if (node.id === id)
+          return { ...node, style: { ...node.style, height: calculatedHeight, width: 300 } };
+        if (node.id === parentId)
+          return { ...node, data: { ...node.data, lastUpdate: Date.now() } };
+        return node;
+      });
     });
-  });
-}, [calculatedHeight, id, setNodes, childFunctions.length]);
+  }, [calculatedHeight, id, setNodes, childFunctions.length]);
+
+  // ── Add function ──
   const addFunction = useCallback((evt) => {
     evt.stopPropagation();
     const newFnId = `fn_${Date.now()}`;
-    
-    setNodes((nodes) => {
-      const fileNode = nodes.find(n => n.id === id);
-      const currentChildren = nodes.filter(n => n.parentId === id && n.type === 'function');
-      const newCount = currentChildren.length + 1;
-      const newHeight = Math.max(240, 70 + (newCount * 65) + 50);
-      
-      // Calculate the y position for the new function (at the bottom)
-      const newFunctionY = 100 + (currentChildren.length * 65);
-      
-      // Update file height and add new function - all in one go
-      const updatedNodes = nodes.map(node => {
-        if (node.id === id) {
-          return {
-            ...node,
-            style: { ...node.style, height: newHeight, width: 300 }
-          };
-        }
-        return node;
-      });
-      
-      // Add new function with proper extent
+
+    setNodes(nodes => {
+      const siblings  = nodes.filter(n => n.parentId === id && n.type === 'function');
+      const newCount  = siblings.length + 1;
+      const newHeight = fileHeight(newCount);
+
+      const updated = nodes.map(node =>
+        node.id === id
+          ? { ...node, style: { ...node.style, height: newHeight, width: 300 } }
+          : node
+      );
+
       return [
-        ...updatedNodes,
+        ...updated,
         {
-          id: newFnId,
-          type: 'function',
+          id:       newFnId,
+          type:     'function',
           parentId: id,
-          position: { x: 25, y: newFunctionY },
-          extent: [[0, 65], [300, newHeight]], // Explicit extent with new height
+          position: { x: 20, y: fnY(siblings.length) },
+          extent:   [[0, FILE_HEADER], [300, newHeight]],
           draggable: true,
-          data: { 
-            label: 'newFunction()', 
-            description: 'Add your logic here...' 
-          }
-        }
+          data: { label: 'newFunction()', description: '' },
+        },
       ];
     });
   }, [id, setNodes]);
 
-  const handleDoubleClick = (e) => {
-    e.stopPropagation();
-    setIsEditing(true);
-    setEditValue(data.label);
-  };
-
-  const handleSave = () => {
-    if (editValue.trim()) {
-      setNodes((nodes) =>
-        nodes.map((node) =>
-          node.id === id ? { ...node, data: { ...node.data, label: editValue.trim() } } : node
-        )
-      );
-    }
+  // ── Label editing ──
+  const handleSave   = () => {
+    if (editValue.trim())
+      setNodes(nodes => nodes.map(n => n.id === id ? { ...n, data: { ...n.data, label: editValue.trim() } } : n));
     setIsEditing(false);
   };
+  const handleCancel  = () => { setEditValue(data.label); setIsEditing(false); };
+  const handleKeyDown = (e) => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') handleCancel(); };
 
-  const handleCancel = () => {
-    setEditValue(data.label);
-    setIsEditing(false);
-  };
-
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter') {
-      handleSave();
-    } else if (e.key === 'Escape') {
-      handleCancel();
-    }
-  };
+  const hasDesc   = Boolean(data.description?.trim());
+  const shortDesc = data.description?.length > 44 ? data.description.slice(0, 42) + '…' : data.description;
 
   return (
-    <div 
+    <div
       className={`
         relative min-w-[300px]
         bg-gradient-to-br from-blue-900 via-blue-950 to-indigo-950
         border-2 rounded-xl transition-all shadow-2xl group overflow-hidden
-        ${selected 
-          ? 'border-blue-400 shadow-blue-500/40 ring-4 ring-blue-500/30' 
-          : 'border-blue-600 hover:border-blue-500'
-        }
+        ${selected
+          ? 'border-blue-400 shadow-blue-500/40 ring-4 ring-blue-500/30'
+          : 'border-blue-600 hover:border-blue-500'}
       `}
       style={{ height: `${calculatedHeight}px`, width: '300px' }}
     >
-      
-      {/* Decorative gradient overlay */}
       <div className={`absolute inset-0 ${fileConfig.bg} opacity-0 group-hover:opacity-30 transition-opacity duration-300 pointer-events-none`} />
-      
-      {/* Header - PROTECTED ZONE */}
+
+      {/* Header */}
       <div className="relative flex items-center justify-between px-4 py-3 bg-blue-950/60 border-b border-blue-700 backdrop-blur-sm pointer-events-auto z-10">
         <div className="flex items-center gap-2.5 flex-1 min-w-0">
           <div className={`p-1.5 ${fileConfig.bg} rounded-lg flex-shrink-0`}>
@@ -153,40 +118,36 @@ useEffect(() => {
           <div className="flex-1 min-w-0">
             {isEditing ? (
               <div className="flex items-center gap-1">
-                <input
-                  type="text"
-                  value={editValue}
-                  onChange={(e) => setEditValue(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  autoFocus
+                <input type="text" value={editValue} onChange={e => setEditValue(e.target.value)}
+                  onKeyDown={handleKeyDown} autoFocus
                   className="bg-blue-800 text-white text-sm font-bold px-2 py-1 rounded border-2 border-blue-400 focus:outline-none w-full"
-                  onClick={(e) => e.stopPropagation()}
-                />
-                <button onClick={handleSave} className="p-1 hover:bg-green-500/20 rounded text-green-400">
-                  <Check size={14} />
-                </button>
-                <button onClick={handleCancel} className="p-1 hover:bg-red-500/20 rounded text-red-400">
-                  <X size={14} />
-                </button>
+                  onClick={e => e.stopPropagation()} />
+                <button onClick={handleSave}   className="p-1 hover:bg-green-500/20 rounded text-green-400"><Check size={14} /></button>
+                <button onClick={handleCancel} className="p-1 hover:bg-red-500/20 rounded text-red-400"><X size={14} /></button>
               </div>
             ) : (
-              <div onDoubleClick={handleDoubleClick} className="cursor-pointer">
+              <div onDoubleClick={e => { e.stopPropagation(); setIsEditing(true); setEditValue(data.label); }} className="cursor-pointer">
                 <span className="text-base font-bold text-white tracking-tight">{data.label}</span>
-                <div className="text-xs uppercase text-blue-300 font-semibold tracking-wider">
-                  {data.fileType || 'file'} • double-click to rename
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className="text-[10px] uppercase text-blue-300 font-semibold tracking-wider">
+                    {data.fileType || 'file'}
+                  </span>
+                  {hasDesc && (
+                    <>
+                      <span className="text-blue-700">·</span>
+                      <span className="text-[10px] text-blue-500/80 truncate max-w-[140px]">{shortDesc}</span>
+                    </>
+                  )}
                 </div>
               </div>
             )}
           </div>
         </div>
-        
-        {/* Quick Add Button */}
+
         {!isEditing && (
-          <button 
-            onClick={addFunction}
+          <button onClick={addFunction}
             className="px-3 py-2 hover:bg-blue-500/20 rounded-lg text-blue-300 hover:text-blue-200 transition-all active:scale-90 border border-transparent hover:border-blue-600/50 flex-shrink-0 flex items-center gap-1.5"
-            title="Add Function"
-          >
+            title="Add Function">
             <Plus size={16} />
             <span className="text-xs font-semibold">Add Func</span>
           </button>
@@ -203,15 +164,15 @@ useEffect(() => {
         </div>
       )}
 
-      {/* Connection Points - Bidirectional */}
-      <Handle type="source" position={Position.Top} id="top" className="!w-24 !h-2 !bg-gradient-to-r from-transparent via-blue-400 to-transparent !rounded-full !-top-1 !border-none !shadow-sm !shadow-blue-500/20" isConnectable={true} />
-      <Handle type="target" position={Position.Top} id="top-target" className="!w-24 !h-2 !bg-gradient-to-r from-transparent via-blue-400 to-transparent !rounded-full !-top-1 !border-none !shadow-sm !shadow-blue-500/20" isConnectable={true} />
-      <Handle type="source" position={Position.Bottom} id="bottom" className="!w-24 !h-2 !bg-gradient-to-r from-transparent via-blue-400 to-transparent !rounded-full !-bottom-1 !border-none !shadow-sm !shadow-blue-500/20" isConnectable={true} />
+      {/* Handles */}
+      <Handle type="source" position={Position.Top}    id="top"           className="!w-24 !h-2 !bg-gradient-to-r from-transparent via-blue-400 to-transparent !rounded-full !-top-1 !border-none !shadow-sm !shadow-blue-500/20" isConnectable={true} />
+      <Handle type="target" position={Position.Top}    id="top-target"    className="!w-24 !h-2 !bg-gradient-to-r from-transparent via-blue-400 to-transparent !rounded-full !-top-1 !border-none !shadow-sm !shadow-blue-500/20" isConnectable={true} />
+      <Handle type="source" position={Position.Bottom} id="bottom"        className="!w-24 !h-2 !bg-gradient-to-r from-transparent via-blue-400 to-transparent !rounded-full !-bottom-1 !border-none !shadow-sm !shadow-blue-500/20" isConnectable={true} />
       <Handle type="target" position={Position.Bottom} id="bottom-target" className="!w-24 !h-2 !bg-gradient-to-r from-transparent via-blue-400 to-transparent !rounded-full !-bottom-1 !border-none !shadow-sm !shadow-blue-500/20" isConnectable={true} />
-      <Handle type="source" position={Position.Left} id="left" className="!w-2 !h-16 !bg-gradient-to-b from-transparent via-indigo-400 to-transparent !rounded-full !-left-1 !border-none !shadow-sm !shadow-indigo-500/20" isConnectable={true} />
-      <Handle type="target" position={Position.Left} id="left-target" className="!w-2 !h-16 !bg-gradient-to-b from-transparent via-indigo-400 to-transparent !rounded-full !-left-1 !border-none !shadow-sm !shadow-indigo-500/20" isConnectable={true} />
-      <Handle type="source" position={Position.Right} id="right" className="!w-2 !h-16 !bg-gradient-to-b from-transparent via-indigo-400 to-transparent !rounded-full !-right-1 !border-none !shadow-sm !shadow-indigo-500/20" isConnectable={true} />
-      <Handle type="target" position={Position.Right} id="right-target" className="!w-2 !h-16 !bg-gradient-to-b from-transparent via-indigo-400 to-transparent !rounded-full !-right-1 !border-none !shadow-sm !shadow-indigo-500/20" isConnectable={true} />
+      <Handle type="source" position={Position.Left}   id="left"          className="!w-2 !h-16 !bg-gradient-to-b from-transparent via-indigo-400 to-transparent !rounded-full !-left-1 !border-none !shadow-sm !shadow-indigo-500/20" isConnectable={true} />
+      <Handle type="target" position={Position.Left}   id="left-target"   className="!w-2 !h-16 !bg-gradient-to-b from-transparent via-indigo-400 to-transparent !rounded-full !-left-1 !border-none !shadow-sm !shadow-indigo-500/20" isConnectable={true} />
+      <Handle type="source" position={Position.Right}  id="right"         className="!w-2 !h-16 !bg-gradient-to-b from-transparent via-indigo-400 to-transparent !rounded-full !-right-1 !border-none !shadow-sm !shadow-indigo-500/20" isConnectable={true} />
+      <Handle type="target" position={Position.Right}  id="right-target"  className="!w-2 !h-16 !bg-gradient-to-b from-transparent via-indigo-400 to-transparent !rounded-full !-right-1 !border-none !shadow-sm !shadow-indigo-500/20" isConnectable={true} />
     </div>
   );
 }
