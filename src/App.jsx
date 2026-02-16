@@ -6,7 +6,8 @@ import { StatsPanel }       from './components/Panels/StatsPanel';
 import { EdgeTypeSelector } from './components/Panels/EdgeTypeSelector';
 import { ToolbarPanel }     from './components/Panels/ToolbarPanel';
 import { DetailPanel }      from './components/Panels/DetailPanel';
-import { BulkActionsBar }   from './components/Panels/BulkActionsBar';
+import { BulkActionsBar }     from './components/Panels/BulkActionsBar';
+import { ExportImportPanel }  from './components/Panels/ExportImportPanel';
 
 import FunctionNode  from './nodes/FunctionNode';
 import FileNode      from './nodes/FileNode';
@@ -211,6 +212,11 @@ export default function App() {
         onClear={clearSelection}
       />
 
+
+      <ExportImportPanel
+        nodes={nodes} edges={edges}
+        setNodes={setNodes} setEdges={setEdges}
+      />
 
       {/* Search trigger button — always visible */}
       <button
