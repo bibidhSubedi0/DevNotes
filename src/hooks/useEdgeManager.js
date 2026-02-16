@@ -13,13 +13,11 @@ export const useEdgeManager = (setEdges, selectedEdgeType) => {
     
     const newEdge = { 
       ...params, 
-      type: 'smoothstep',
+      type: 'smart',
       animated: edgeConfig.animated, 
-      label: edgeConfig.label,
-      style: { stroke: edgeConfig.color, strokeWidth: 2 },
+      data:  { label: edgeConfig.label, color: edgeConfig.color },
+      style: { stroke: edgeConfig.color, strokeWidth: 1.5 },
       markerEnd: { type: MarkerType.ArrowClosed, color: edgeConfig.color },
-      labelStyle: { fill: edgeConfig.color, fontSize: 10, fontWeight: 600 },
-      labelBgStyle: { fill: '#171717', fillOpacity: 0.9 }
     };
     
     setEdges((eds) => addEdge(newEdge, eds));
