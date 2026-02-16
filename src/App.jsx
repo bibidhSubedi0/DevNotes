@@ -1,5 +1,5 @@
-import React, { useState, useCallback } from 'react';
-import { useNodesState, useEdgesState, MarkerType } from '@xyflow/react';
+import React, { useState, useCallback, useEffect } from 'react';
+import { MarkerType } from '@xyflow/react';
 
 import { Canvas }           from './components/canvas/Canvas';
 import { StatsPanel }       from './components/Panels/StatsPanel';
@@ -13,12 +13,13 @@ import FileNode      from './nodes/FileNode';
 import ComponentNode from './nodes/ComponentNode';
 import ProjectNode   from './nodes/ProjectNode';
 
+import { useHistory }     from './hooks/useHistory';
 import { useNodeManager } from './hooks/useNodeManager';
 import { useEdgeManager } from './hooks/useEdgeManager';
 import { EDGE_TYPES }     from './utils/constants';
 import {
-  FILE_W, FILE_COLLAPSED_H, COMP_PAD_H, COMP_HEADER_H, FILE_GAP_V,
-  fnY, calcFileH, FILE_MIN_EXP,
+  COMP_PAD_H, COMP_HEADER_H, FILE_GAP_V,
+  FILE_W, fnY, calcFileH,
 } from './utils/layoutConstants';
 
 const nodeTypes = {
@@ -28,7 +29,6 @@ const nodeTypes = {
   project:   ProjectNode,
 };
 
-// Initial component width — single column
 const INIT_COMP_W = 360;
 
 const initialNodes = [
@@ -48,13 +48,12 @@ const initialNodes = [
     type: 'component',
     position: { x: 360, y: 60 },
     data: {
-      width: 360,
+      width: INIT_COMP_W,
       label: 'Auth Component',
       description: 'Handles all authentication flows — login, logout, token refresh.',
       techStack: ['JWT', 'Axios'],
       status: 'stable',
     },
-    // Height = header + gap + file height (2 fns expanded)
     style: {
       width: INIT_COMP_W,
       height: COMP_HEADER_H + FILE_GAP_V + calcFileH(2, false) + FILE_GAP_V,
@@ -71,7 +70,6 @@ const initialNodes = [
       fileType: 'typescript',
       description: 'Core auth service — API calls, token management.',
       exports: ['AuthService', 'useAuth'],
-      // No collapsed flag = expanded by default
     },
     style: { width: FILE_W, height: calcFileH(2, false) },
   },
@@ -120,19 +118,55 @@ const initialEdges = [
 ];
 
 export default function App() {
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+  const {
+    nodes, edges,
+    setNodes, setEdges,
+    onNodesChange, onEdgesChange,
+    undo, redo, canUndo, canRedo,
+  } = useHistory(initialNodes, initialEdges);
+
   const [selectedEdgeType, setSelectedEdgeType] = useState(EDGE_TYPES.DEFAULT);
   const [selectedNodeId, setSelectedNodeId]     = useState(null);
+  const [searchOpen, setSearchOpen]             = useState(false);
 
   const { addProject, addComponent } = useNodeManager(nodes, setNodes);
   const { handleConnect }            = useEdgeManager(setEdges, selectedEdgeType);
 
-  // ── Multi-select / bulk state ──
-  const selectedNodes = nodes.filter(n => n.selected);
+  // ── Bulk select ──
+  const selectedNodes  = nodes.filter(n => n.selected);
   const clearSelection = useCallback(() => {
     setNodes(nds => nds.map(n => n.selected ? { ...n, selected: false } : n));
   }, [setNodes]);
+
+  // ── Global keyboard shortcuts ──
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      const mod = e.ctrlKey || e.metaKey;
+
+      // Undo: Ctrl/Cmd + Z
+      if (mod && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+      }
+      // Redo: Ctrl/Cmd + Y  or  Ctrl/Cmd + Shift + Z
+      if ((mod && e.key === 'y') || (mod && e.shiftKey && e.key === 'z')) {
+        e.preventDefault();
+        redo();
+      }
+      // Search: Ctrl/Cmd + K
+      if (mod && e.key === 'k') {
+        e.preventDefault();
+        setSearchOpen(o => !o);
+      }
+      // Close search: Escape
+      if (e.key === 'Escape') {
+        setSearchOpen(false);
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [undo, redo]);
 
   const handleNodeClick = useCallback((event, node) => {
     event.stopPropagation();
@@ -144,6 +178,7 @@ export default function App() {
 
   return (
     <div style={{ width: '100vw', height: '100vh', position: 'relative', overflow: 'hidden', background: '#050505' }}>
+
       <StatsPanel nodes={nodes} edges={edges} />
       <EdgeTypeSelector selectedEdgeType={selectedEdgeType} onEdgeTypeChange={setSelectedEdgeType} />
       <ToolbarPanel onAddProject={addProject} onAddComponent={addComponent} />
@@ -159,6 +194,12 @@ export default function App() {
           onConnect={handleConnect}
           onNodeClick={handleNodeClick} onPaneClick={handlePaneClick}
           nodeTypes={nodeTypes}
+          canUndo={canUndo} canRedo={canRedo}
+          onUndo={undo}     onRedo={redo}
+          searchOpen={searchOpen}
+          onSearchClose={() => setSearchOpen(false)}
+          onAddProject={addProject}
+          onAddComponent={addComponent}
         />
       </div>
 
@@ -169,6 +210,26 @@ export default function App() {
         setEdges={setEdges}
         onClear={clearSelection}
       />
+
+
+      {/* Search trigger button — always visible */}
+      <button
+        onClick={() => setSearchOpen(true)}
+        className="fixed top-4 left-1/2 -translate-x-1/2 z-40
+                   flex items-center gap-2 px-4 py-2
+                   bg-neutral-900/90 backdrop-blur-xl
+                   border border-neutral-700/60 rounded-xl
+                   text-neutral-500 hover:text-neutral-300
+                   text-sm transition-all hover:border-neutral-600
+                   shadow-lg shadow-black/30"
+        title="Search (Ctrl+K)"
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+        </svg>
+        <span className="hidden sm:inline">Search nodes…</span>
+        <kbd className="hidden sm:inline ml-1 px-1.5 py-0.5 bg-neutral-800 rounded text-[10px] text-neutral-600">⌘K</kbd>
+      </button>
 
       {detailOpen && (
         <DetailPanel
