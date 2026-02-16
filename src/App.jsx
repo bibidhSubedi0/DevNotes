@@ -32,11 +32,16 @@ const nodeTypes = {
 
 const INIT_COMP_W = 360;
 
+// ── Initial nodes — intentionally scattered so Tidy Layout is demonstrable ──
+const COMP2_W = INIT_COMP_W;
+const COMP3_W = INIT_COMP_W;
+
 const initialNodes = [
+  // ── Project ──────────────────────────────────────────────────────────────
   {
     id: 'project1',
     type: 'project',
-    position: { x: 60, y: 180 },
+    position: { x: 900, y: 600 }, // buried bottom-right
     data: {
       label: 'My App',
       description: 'Full-stack web application for user authentication.',
@@ -44,14 +49,16 @@ const initialNodes = [
       stage: 'development',
     },
   },
+
+  // ── Component 1 — Auth (overlapping comp3) ─────────────────────────────
   {
     id: 'comp1',
     type: 'component',
-    position: { x: 360, y: 60 },
+    position: { x: 320, y: 260 },
     data: {
       width: INIT_COMP_W,
       label: 'Auth Component',
-      description: 'Handles all authentication flows — login, logout, token refresh.',
+      description: 'Handles all authentication flows.',
       techStack: ['JWT', 'Axios'],
       status: 'stable',
     },
@@ -66,12 +73,7 @@ const initialNodes = [
     parentId: 'comp1',
     extent: 'parent',
     position: { x: COMP_PAD_H, y: COMP_HEADER_H + FILE_GAP_V },
-    data: {
-      label: 'AuthService.ts',
-      fileType: 'typescript',
-      description: 'Core auth service — API calls, token management.',
-      exports: ['AuthService', 'useAuth'],
-    },
+    data: { label: 'AuthService.ts', fileType: 'typescript' },
     style: { width: FILE_W, height: calcFileH(2, false) },
   },
   {
@@ -80,14 +82,7 @@ const initialNodes = [
     parentId: 'f1',
     extent: 'parent',
     position: { x: 16, y: fnY(0) },
-    data: {
-      label: 'login()',
-      description: 'Validates credentials. Returns signed JWT on success.',
-      params: ['email: string', 'password: string'],
-      returns: 'Promise<{ token: string }>',
-      complexity: 'medium',
-      tags: ['auth', 'async', 'critical'],
-    },
+    data: { label: 'login()', complexity: 'medium', tags: ['auth'] },
   },
   {
     id: 'fn2',
@@ -95,26 +90,120 @@ const initialNodes = [
     parentId: 'f1',
     extent: 'parent',
     position: { x: 16, y: fnY(1) },
+    data: { label: 'logout()', complexity: 'low', tags: ['auth'] },
+  },
+
+  // ── Component 2 — API (far top-right, disconnected-looking) ────────────
+  {
+    id: 'comp2',
+    type: 'component',
+    position: { x: 800, y: 20 },
     data: {
-      label: 'logout()',
-      description: 'Clears session and revokes token on the server.',
-      params: [],
-      returns: 'void',
-      complexity: 'low',
-      tags: ['auth'],
+      width: COMP2_W,
+      label: 'API Component',
+      description: 'REST API client — wraps all backend calls.',
+      techStack: ['Axios', 'React Query'],
+      status: 'in-progress',
     },
+    style: {
+      width: COMP2_W,
+      height: COMP_HEADER_H + FILE_GAP_V + calcFileH(2, false) + FILE_GAP_V,
+    },
+  },
+  {
+    id: 'f2',
+    type: 'file',
+    parentId: 'comp2',
+    extent: 'parent',
+    position: { x: COMP_PAD_H, y: COMP_HEADER_H + FILE_GAP_V },
+    data: { label: 'apiClient.ts', fileType: 'typescript' },
+    style: { width: FILE_W, height: calcFileH(2, false) },
+  },
+  {
+    id: 'fn3',
+    type: 'function',
+    parentId: 'f2',
+    extent: 'parent',
+    position: { x: 16, y: fnY(0) },
+    data: { label: 'get()', complexity: 'low', tags: ['api'] },
+  },
+  {
+    id: 'fn4',
+    type: 'function',
+    parentId: 'f2',
+    extent: 'parent',
+    position: { x: 16, y: fnY(1) },
+    data: { label: 'post()', complexity: 'medium', tags: ['api'] },
+  },
+
+  // ── Component 3 — UI (top-left, opposite corner from project) ──────────
+  {
+    id: 'comp3',
+    type: 'component',
+    position: { x: 40, y: 500 },
+    data: {
+      width: COMP3_W,
+      label: 'UI Component',
+      description: 'Shared UI primitives — buttons, modals, forms.',
+      techStack: ['React', 'Tailwind'],
+      status: 'stable',
+    },
+    style: {
+      width: COMP3_W,
+      height: COMP_HEADER_H + FILE_GAP_V + calcFileH(1, false) + FILE_GAP_V,
+    },
+  },
+  {
+    id: 'f3',
+    type: 'file',
+    parentId: 'comp3',
+    extent: 'parent',
+    position: { x: COMP_PAD_H, y: COMP_HEADER_H + FILE_GAP_V },
+    data: { label: 'Button.tsx', fileType: 'react' },
+    style: { width: FILE_W, height: calcFileH(1, false) },
+  },
+  {
+    id: 'fn5',
+    type: 'function',
+    parentId: 'f3',
+    extent: 'parent',
+    position: { x: 16, y: fnY(0) },
+    data: { label: 'Button()', complexity: 'low', tags: ['ui'] },
   },
 ];
 
 const initialEdges = [
   {
     id: 'e1',
-    source: 'project1',
-    target: 'comp1',
-    type: 'smoothstep',
-    animated: false,
-    style: { stroke: '#a855f7', strokeWidth: 2 },
+    source: 'project1', target: 'comp1',
+    type: 'smart',
+    data:  { label: 'uses', color: '#a855f7' },
+    style: { stroke: '#a855f7', strokeWidth: 1.5 },
     markerEnd: { type: MarkerType.ArrowClosed, color: '#a855f7' },
+  },
+  {
+    id: 'e2',
+    source: 'project1', target: 'comp2',
+    type: 'smart',
+    data:  { label: 'uses', color: '#a855f7' },
+    style: { stroke: '#a855f7', strokeWidth: 1.5 },
+    markerEnd: { type: MarkerType.ArrowClosed, color: '#a855f7' },
+  },
+  {
+    id: 'e3',
+    source: 'project1', target: 'comp3',
+    type: 'smart',
+    data:  { label: 'uses', color: '#a855f7' },
+    style: { stroke: '#a855f7', strokeWidth: 1.5 },
+    markerEnd: { type: MarkerType.ArrowClosed, color: '#a855f7' },
+  },
+  {
+    id: 'e4',
+    source: 'comp1', target: 'comp2',
+    type: 'smart',
+    data:  { label: 'imports', color: '#8b5cf6' },
+    style: { stroke: '#8b5cf6', strokeWidth: 1.5 },
+    markerEnd: { type: MarkerType.ArrowClosed, color: '#8b5cf6' },
   },
 ];
 

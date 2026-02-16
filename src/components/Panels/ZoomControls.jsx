@@ -1,5 +1,5 @@
 import { useReactFlow, Panel, useViewport } from '@xyflow/react';
-import { ZoomIn, ZoomOut, Maximize2, Undo2, Redo2, FolderGit2, Cpu } from 'lucide-react';
+import { ZoomIn, ZoomOut, Maximize2, Undo2, Redo2, FolderGit2, Cpu, LayoutGrid } from 'lucide-react';
 
 const ZOOM_MIN    = 0.1;
 const ZOOM_MAX    = 2;
@@ -21,7 +21,7 @@ const Btn = ({ onClick, disabled, title, children }) => (
 
 const Divider = () => <div className="w-px h-5 bg-neutral-700/60 mx-0.5" />;
 
-export const ZoomControls = ({ canUndo, canRedo, onUndo, onRedo, onAddProject, onAddComponent }) => {
+export const ZoomControls = ({ canUndo, canRedo, onUndo, onRedo, onAddProject, onAddComponent, onTidyLayout }) => {
   const { zoomIn, zoomOut, zoomTo, fitView } = useReactFlow();
   const { zoom } = useViewport();
   const pct = Math.round(zoom * 100);
@@ -97,6 +97,13 @@ export const ZoomControls = ({ canUndo, canRedo, onUndo, onRedo, onAddProject, o
         {/* Fit view */}
         <Btn onClick={() => fitView({ duration: 350, padding: 0.08 })} title="Fit view">
           <Maximize2 size={13} />
+        </Btn>
+
+        <Divider />
+
+        {/* Tidy layout */}
+        <Btn onClick={onTidyLayout} title="Auto-arrange nodes (Dagre LR layout)">
+          <LayoutGrid size={13} />
         </Btn>
 
       </div>
