@@ -116,7 +116,15 @@ export default function FileNode({ id, data, selected }) {
 
   const highCount = childFunctions.filter(f => f.data?.complexity === 'high').length;
   const medCount  = childFunctions.filter(f => f.data?.complexity === 'medium').length;
-
+  const documented = childFunctions.filter(f => f.data?.description?.trim()).length;
+  const docBadgeColor =
+    fnCount === 0
+      ? 'red'
+      : documented === fnCount
+      ? 'emerald'
+      : documented > 0
+      ? 'amber'
+      : 'red';
   return (
     <div
       className={`
@@ -174,6 +182,16 @@ export default function FileNode({ id, data, selected }) {
 
         {/* Right badges */}
         <div className="flex items-center gap-1.5 flex-shrink-0">
+          {/* Documentation badge */}
+          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md
+            ${docBadgeColor === 'emerald' ? 'text-emerald-400 bg-emerald-500/10' :
+              docBadgeColor === 'amber'   ? 'text-amber-400 bg-amber-500/10' :
+                                            'text-red-400 bg-red-500/10'}`}
+            title={`${documented} of ${fnCount} functions documented`}
+          >
+            {documented}/{fnCount}
+          </span>
+          
           <span className="text-[10px] font-bold text-blue-500/80 bg-blue-500/10 px-1.5 py-0.5 rounded-md">
             {fnCount} fn
           </span>

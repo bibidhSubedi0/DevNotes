@@ -330,7 +330,11 @@ export default function App() {
         <DetailPanel
           selectedNodeId={selectedNodeId}
           nodes={nodes} setNodes={setNodes}
-          onClose={() => setSelectedNodeId(null)}
+          onClose={(nextNodeId) => {
+            // If nextNodeId is passed, it's navigation (prev/next)
+            // Otherwise it's a close action
+            setSelectedNodeId(nextNodeId || null);
+          }}
         />
       )}
     </div>
