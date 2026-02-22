@@ -38,24 +38,34 @@ const Field = ({ label, children }) => (
   </div>
 );
 
-// ── EXPANDABLE TEXTAREA (auto-grows on focus, 10 rows default, up to 20) ──
+// ── AUTO-GROWING TEXTAREA (expands to fit content, no internal scroll) ──
 const TextareaField = ({ value, onChange, placeholder, rows = 10, autoFocus = false }) => {
-  const [focused, setFocused] = useState(false);
-  const actualRows = focused ? Math.min(20, Math.max(rows, 10)) : rows;
+  const textareaRef = useRef(null);
+  
+  // Auto-resize on content change
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    
+    // Reset height to recalculate
+    el.style.height = 'auto';
+    // Set to scrollHeight (content height)
+    el.style.height = Math.max(el.scrollHeight, rows * 20) + 'px';
+  }, [value, rows]);
   
   return (
     <textarea
+      ref={textareaRef}
       value={value}
       onChange={e => onChange(e.target.value)}
       placeholder={placeholder}
-      rows={actualRows}
+      rows={rows}
       autoFocus={autoFocus}
-      onFocus={() => setFocused(true)}
-      onBlur={() => setFocused(false)}
       className="w-full bg-neutral-800/80 text-neutral-200 text-sm px-3 py-2.5 rounded-xl
                  border border-neutral-700 focus:border-neutral-500 focus:outline-none
                  resize-none leading-relaxed placeholder:text-neutral-600
-                 transition-all duration-200"
+                 transition-colors overflow-hidden"
+      style={{ minHeight: `${rows * 20}px` }}
     />
   );
 };
