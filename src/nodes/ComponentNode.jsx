@@ -28,6 +28,14 @@ export default function ComponentNode({ id, data, selected }) {
 
   const allNodes   = getNodes();
   const childFiles = allNodes.filter(n => n.parentId === id && n.type === 'file');
+  
+  // Documentation health
+  const allFunctions = childFiles.flatMap(file => 
+    allNodes.filter(n => n.parentId === file.id && n.type === 'function')
+  );
+  const docCount = allFunctions.filter(fn => fn.data.description?.trim()).length;
+  const docPercent = allFunctions.length > 0 ? Math.round((docCount / allFunctions.length) * 100) : 0;
+  const docColor = docPercent === 100 ? 'emerald' : docPercent >= 50 ? 'amber' : 'red';
 
   const sig = `${Math.round(savedWidth)}|` + childFiles.map(f => {
     const fnCount   = allNodes.filter(n => n.parentId === f.id && n.type === 'function').length;
@@ -208,6 +216,16 @@ export default function ComponentNode({ id, data, selected }) {
                 <div className="flex items-center gap-2 mt-0.5">
                   <span className="text-[10px] uppercase text-cyan-500 font-semibold tracking-wider">Component</span>
                   <span className="text-[10px] text-neutral-600">{childFiles.length} files · {totalFns} fn</span>
+                  {allFunctions.length > 0 && (
+                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded
+                      ${docColor === 'emerald' ? 'text-emerald-400 bg-emerald-500/10' :
+                        docColor === 'amber'   ? 'text-amber-400 bg-amber-500/10' :
+                                                 'text-red-400 bg-red-500/10'}`}
+                      title={`${docCount}/${allFunctions.length} functions documented`}
+                    >
+                      {docPercent}% docs
+                    </span>
+                  )}
                   {numCols > 1 && <span className="text-[10px] text-cyan-700">{numCols} cols</span>}
                 </div>
               </div>

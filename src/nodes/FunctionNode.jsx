@@ -28,6 +28,7 @@ export default function FunctionNode({ id, data, selected }) {
   };
 
   const cx = COMPLEXITY_STYLE[data.complexity];
+  const isEmpty = !data.description?.trim();
 
   return (
     <div className="relative">
@@ -35,6 +36,7 @@ export default function FunctionNode({ id, data, selected }) {
         flex items-center gap-2 px-3 py-2
         bg-neutral-900 border rounded-lg
         transition-all duration-150 w-[248px]
+        ${isEmpty ? 'opacity-40' : 'opacity-100'}
         ${selected
           ? 'border-emerald-500/70 shadow-sm shadow-emerald-500/20 ring-2 ring-emerald-500/10'
           : 'border-neutral-800 hover:border-neutral-700'}

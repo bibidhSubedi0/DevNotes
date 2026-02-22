@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   X, Code2, FileType2, Cpu, FolderGit2,
-  Tag, ArrowRight, Layers, ChevronRight,
-  AlertCircle, Plus, Trash2, Edit3, Check, RefreshCw
+  Tag, ArrowRight, Layers, ChevronRight, ChevronLeft,
+  AlertCircle, Plus, Trash2, Edit3, Check, RefreshCw, Pin, PinOff
 } from 'lucide-react';
 
 /* ─── tiny helpers ─────────────────────────────────────────────────────── */
@@ -38,19 +38,37 @@ const Field = ({ label, children }) => (
   </div>
 );
 
-const TextareaField = ({ value, onChange, placeholder, rows = 3, autoFocus = false }) => (
-  <textarea
-    value={value}
-    onChange={e => onChange(e.target.value)}
-    placeholder={placeholder}
-    rows={rows}
-    autoFocus={autoFocus}
-    className="w-full bg-neutral-800/80 text-neutral-200 text-sm px-3 py-2.5 rounded-xl
-               border border-neutral-700 focus:border-neutral-500 focus:outline-none
-               resize-none leading-relaxed placeholder:text-neutral-600
-               transition-colors"
-  />
-);
+// ── AUTO-GROWING TEXTAREA (expands to fit content, no internal scroll) ──
+const TextareaField = ({ value, onChange, placeholder, rows = 10, autoFocus = false }) => {
+  const textareaRef = useRef(null);
+  
+  // Auto-resize on content change
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    
+    // Reset height to recalculate
+    el.style.height = 'auto';
+    // Set to scrollHeight (content height)
+    el.style.height = Math.max(el.scrollHeight, rows * 20) + 'px';
+  }, [value, rows]);
+  
+  return (
+    <textarea
+      ref={textareaRef}
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      placeholder={placeholder}
+      rows={rows}
+      autoFocus={autoFocus}
+      className="w-full bg-neutral-800/80 text-neutral-200 text-sm px-3 py-2.5 rounded-xl
+                 border border-neutral-700 focus:border-neutral-500 focus:outline-none
+                 resize-none leading-relaxed placeholder:text-neutral-600
+                 transition-colors overflow-hidden"
+      style={{ minHeight: `${rows * 20}px` }}
+    />
+  );
+};
 
 const InputField = ({ value, onChange, placeholder }) => (
   <input
@@ -98,10 +116,9 @@ const TagEditor = ({ tags = [], onChange, placeholder, color = 'neutral' }) => {
         value={inputVal}
         onChange={e => setInputVal(e.target.value)}
         onKeyDown={onKey}
-        onBlur={addTag}
-        placeholder={tags.length ? '' : placeholder}
-        className="flex-1 min-w-[80px] bg-transparent text-sm text-neutral-300
-                   outline-none placeholder:text-neutral-600"
+        placeholder={!tags.length ? placeholder : ''}
+        className="flex-1 min-w-[120px] bg-transparent text-sm text-neutral-200
+                   placeholder:text-neutral-600 focus:outline-none"
       />
     </div>
   );
@@ -155,6 +172,45 @@ const NODE_CONFIG = {
   project:   { icon: FolderGit2,  color: 'purple',  label: 'Project',   accent: '#a855f7' },
 };
 
+/* ─── BREADCRUMB (shows hierarchy: Project > Component > File > Function) ── */
+const Breadcrumb = ({ node, nodes }) => {
+  const crumbs = [];
+  let current = node;
+  
+  while (current) {
+    const config = NODE_CONFIG[current.type];
+    crumbs.unshift({
+      id: current.id,
+      label: current.data?.label || current.id,
+      icon: config?.icon || Code2,
+    });
+    current = current.parentId ? nodes.find(n => n.id === current.parentId) : null;
+  }
+
+  if (crumbs.length <= 1) return null;
+
+  return (
+    <div className="px-5 py-2 border-b border-neutral-800/50 bg-neutral-900/50">
+      <div className="flex items-center gap-1.5 text-xs text-neutral-500 overflow-x-auto">
+        {crumbs.map((crumb, i) => {
+          const Icon = crumb.icon;
+          return (
+            <React.Fragment key={crumb.id}>
+              {i > 0 && <ChevronRight size={12} className="flex-shrink-0" />}
+              <div className="flex items-center gap-1 flex-shrink-0">
+                <Icon size={11} />
+                <span className={i === crumbs.length - 1 ? 'text-neutral-300 font-medium' : ''}>
+                  {crumb.label}
+                </span>
+              </div>
+            </React.Fragment>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 /* ─── SECTION PANELS per type ───────────────────────────────────────────── */
 
 function FunctionDetails({ draft, setDraft }) {
@@ -164,8 +220,8 @@ function FunctionDetails({ draft, setDraft }) {
         <TextareaField
           value={draft.description || ''}
           onChange={v => setDraft(d => ({ ...d, description: v }))}
-          placeholder="What does this function do? What problem does it solve?"
-          rows={4}
+          placeholder="What does this function do? What problem does it solve? Include edge cases, side effects, and why it exists."
+          rows={10}
         />
       </Field>
 
@@ -175,7 +231,7 @@ function FunctionDetails({ draft, setDraft }) {
           onChange={v => setDraft(d => ({ ...d, params: v }))}
           placeholder="Add param (e.g.  userId: string)"
         />
-        <p className="text-[11px] text-neutral-600 mt-1.5">Enter + comma to add each param</p>
+        <p className="text-[11px] text-neutral-600 mt-1.5">Enter or comma to add</p>
       </Field>
 
       <Field label="Return Type">
@@ -200,15 +256,6 @@ function FunctionDetails({ draft, setDraft }) {
           placeholder="auth, async, critical…"
         />
       </Field>
-
-      <Field label="Notes / Side-effects">
-        <TextareaField
-          value={draft.notes || ''}
-          onChange={v => setDraft(d => ({ ...d, notes: v }))}
-          placeholder="Edge cases, gotchas, side-effects…"
-          rows={2}
-        />
-      </Field>
     </>
   );
 }
@@ -216,12 +263,12 @@ function FunctionDetails({ draft, setDraft }) {
 function FileDetails({ draft, setDraft }) {
   return (
     <>
-      <Field label="Purpose">
+      <Field label="Description">
         <TextareaField
           value={draft.description || ''}
           onChange={v => setDraft(d => ({ ...d, description: v }))}
-          placeholder="What is this file responsible for?"
-          rows={3}
+          placeholder="Purpose of this file. What responsibilities does it handle? What modules does it export?"
+          rows={8}
         />
       </Field>
 
@@ -232,29 +279,11 @@ function FileDetails({ draft, setDraft }) {
         />
       </Field>
 
-      <Field label="Key Exports">
+      <Field label="Exports">
         <TagEditor
           tags={draft.exports || []}
           onChange={v => setDraft(d => ({ ...d, exports: v }))}
-          placeholder="AuthService, loginHandler…"
-        />
-        <p className="text-[11px] text-neutral-600 mt-1.5">List what this file exports</p>
-      </Field>
-
-      <Field label="Dependencies / Imports">
-        <TagEditor
-          tags={draft.dependencies || []}
-          onChange={v => setDraft(d => ({ ...d, dependencies: v }))}
-          placeholder="axios, react-query, zod…"
-        />
-      </Field>
-
-      <Field label="Notes">
-        <TextareaField
-          value={draft.notes || ''}
-          onChange={v => setDraft(d => ({ ...d, notes: v }))}
-          placeholder="Anything important about this file…"
-          rows={2}
+          placeholder="Add exported symbols"
         />
       </Field>
     </>
@@ -264,36 +293,28 @@ function FileDetails({ draft, setDraft }) {
 function ComponentDetails({ draft, setDraft }) {
   return (
     <>
-      <Field label="Purpose">
+      <Field label="Description">
         <TextareaField
           value={draft.description || ''}
           onChange={v => setDraft(d => ({ ...d, description: v }))}
-          placeholder="What is this component responsible for? What domain does it own?"
-          rows={4}
+          placeholder="What does this component do? What are its responsibilities? How does it fit into the larger system?"
+          rows={8}
         />
       </Field>
 
-      <Field label="Tech Stack / Libraries">
+      <Field label="Tech Stack">
         <TagEditor
           tags={draft.techStack || []}
           onChange={v => setDraft(d => ({ ...d, techStack: v }))}
-          placeholder="React Query, Zod, Axios…"
-        />
-      </Field>
-
-      <Field label="Props / Interface">
-        <TagEditor
-          tags={draft.props || []}
-          onChange={v => setDraft(d => ({ ...d, props: v }))}
-          placeholder="userId, onSuccess, config…"
+          placeholder="React, Redux, Axios…"
         />
       </Field>
 
       <Field label="Status">
         <div className="flex gap-2">
-          {['planned', 'in-progress', 'stable', 'deprecated'].map(s => (
+          {['planning', 'in-progress', 'stable', 'deprecated'].map(s => (
             <button key={s} onClick={() => setDraft(d => ({ ...d, status: s }))}
-              className={`flex-1 py-1.5 rounded-xl text-[11px] font-semibold border transition-all
+              className={`flex-1 py-1.5 rounded-xl text-xs font-semibold border transition-all
                 ${draft.status === s
                   ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-300'
                   : 'bg-neutral-800 border-neutral-700 text-neutral-500 hover:border-neutral-600'
@@ -302,15 +323,6 @@ function ComponentDetails({ draft, setDraft }) {
             </button>
           ))}
         </div>
-      </Field>
-
-      <Field label="Notes">
-        <TextareaField
-          value={draft.notes || ''}
-          onChange={v => setDraft(d => ({ ...d, notes: v }))}
-          placeholder="Architecture decisions, known issues…"
-          rows={2}
-        />
       </Field>
     </>
   );
@@ -323,8 +335,8 @@ function ProjectDetails({ draft, setDraft }) {
         <TextareaField
           value={draft.description || ''}
           onChange={v => setDraft(d => ({ ...d, description: v }))}
-          placeholder="What is this project? What problem does it solve?"
-          rows={4}
+          placeholder="High-level overview. What problem does this project solve? Who are the users? What's the architecture?"
+          rows={12}
         />
       </Field>
 
@@ -332,23 +344,15 @@ function ProjectDetails({ draft, setDraft }) {
         <TagEditor
           tags={draft.techStack || []}
           onChange={v => setDraft(d => ({ ...d, techStack: v }))}
-          placeholder="React, Node, PostgreSQL…"
-        />
-      </Field>
-
-      <Field label="Repo / Links">
-        <TagEditor
-          tags={draft.links || []}
-          onChange={v => setDraft(d => ({ ...d, links: v }))}
-          placeholder="github.com/org/repo"
+          placeholder="React, Node.js, PostgreSQL…"
         />
       </Field>
 
       <Field label="Stage">
-        <div className="flex gap-2 flex-wrap">
-          {['idea', 'prototyping', 'development', 'production', 'archived'].map(s => (
+        <div className="flex gap-2">
+          {['concept', 'development', 'production', 'maintenance'].map(s => (
             <button key={s} onClick={() => setDraft(d => ({ ...d, stage: s }))}
-              className={`px-3 py-1.5 rounded-xl text-[11px] font-semibold border transition-all
+              className={`flex-1 py-1.5 rounded-xl text-xs font-semibold border transition-all
                 ${draft.stage === s
                   ? 'bg-purple-500/20 border-purple-500/50 text-purple-300'
                   : 'bg-neutral-800 border-neutral-700 text-neutral-500 hover:border-neutral-600'
@@ -357,15 +361,6 @@ function ProjectDetails({ draft, setDraft }) {
             </button>
           ))}
         </div>
-      </Field>
-
-      <Field label="Notes">
-        <TextareaField
-          value={draft.notes || ''}
-          onChange={v => setDraft(d => ({ ...d, notes: v }))}
-          placeholder="Context, decisions, things to remember…"
-          rows={2}
-        />
       </Field>
     </>
   );
@@ -378,17 +373,18 @@ const SECTION_MAP = {
   project:   ProjectDetails,
 };
 
-/* ─── MAIN PANEL ────────────────────────────────────────────────────────── */
+/* ─── MAIN DETAIL PANEL ─────────────────────────────────────────────────── */
 
 export const DetailPanel = ({ selectedNodeId, nodes, setNodes, onClose }) => {
-  const node = nodes.find(n => n.id === selectedNodeId);
   const [draft, setDraft] = useState(null);
   const [labelDraft, setLabelDraft] = useState('');
   const [editingLabel, setEditingLabel] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [locked, setLocked] = useState(false); // lock-open mode
   const saveTimerRef = useRef(null);
 
-  // Re-initialise draft when selected node changes
+  const node = nodes.find(n => n.id === selectedNodeId);
+
   useEffect(() => {
     if (node) {
       setDraft({ ...node.data });
@@ -396,13 +392,36 @@ export const DetailPanel = ({ selectedNodeId, nodes, setNodes, onClose }) => {
       setEditingLabel(false);
       setSaved(false);
     }
-  }, [selectedNodeId]);
+  }, [selectedNodeId, node]);
 
   if (!node || !draft) return null;
 
   const config = NODE_CONFIG[node.type] || NODE_CONFIG.function;
   const Icon = config.icon;
   const SectionContent = SECTION_MAP[node.type];
+
+  // ── NAVIGATION (prev/next) when locked ──────────────────────────────────
+  const allNodes = nodes.filter(n => NODE_CONFIG[n.type]); // only documented types
+  const currentIdx = allNodes.findIndex(n => n.id === selectedNodeId);
+  const hasPrev = currentIdx > 0;
+  const hasNext = currentIdx < allNodes.length - 1;
+
+  const goToPrev = () => {
+    if (hasPrev) {
+      commitSave();
+      // Call onClose with the prev node ID so App can update selectedNodeId
+      const prevNode = allNodes[currentIdx - 1];
+      onClose(prevNode.id);
+    }
+  };
+
+  const goToNext = () => {
+    if (hasNext) {
+      commitSave();
+      const nextNode = allNodes[currentIdx + 1];
+      onClose(nextNode.id);
+    }
+  };
 
   // Save label
   const saveLabel = () => {
@@ -442,6 +461,12 @@ export const DetailPanel = ({ selectedNodeId, nodes, setNodes, onClose }) => {
   // Accent line color per type
   const accentStyle = { borderTop: `3px solid ${config.accent}` };
 
+  // Handle close — if locked, don't actually close, just deselect visually
+  const handleClose = () => {
+    if (locked) return; // ignore close when locked
+    onClose();
+  };
+
   return (
     <div
       className="fixed right-0 top-0 h-screen w-[360px] z-40
@@ -462,14 +487,60 @@ export const DetailPanel = ({ selectedNodeId, nodes, setNodes, onClose }) => {
             <Badge color={config.color}>{config.label}</Badge>
           </div>
         </div>
-        <button
-          onClick={onClose}
-          className="p-2 rounded-xl text-neutral-600 hover:text-neutral-300
-                     hover:bg-neutral-800 transition-all"
-        >
-          <X size={16} />
-        </button>
+        
+        <div className="flex items-center gap-1">
+          {/* Lock button */}
+          <button
+            onClick={() => setLocked(!locked)}
+            className={`p-2 rounded-xl transition-all
+              ${locked
+                ? 'bg-cyan-500/20 text-cyan-400'
+                : 'text-neutral-600 hover:text-neutral-300 hover:bg-neutral-800'
+              }`}
+            title={locked ? 'Unlock panel' : 'Lock panel open (navigate with arrows)'}
+          >
+            {locked ? <Pin size={14} /> : <PinOff size={14} />}
+          </button>
+
+          {/* Prev/Next navigation when locked */}
+          {locked && (
+            <>
+              <button
+                onClick={goToPrev}
+                disabled={!hasPrev}
+                className="p-2 rounded-xl text-neutral-400 hover:text-white hover:bg-neutral-800
+                           transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                title="Previous node"
+              >
+                <ChevronLeft size={14} />
+              </button>
+              <button
+                onClick={goToNext}
+                disabled={!hasNext}
+                className="p-2 rounded-xl text-neutral-400 hover:text-white hover:bg-neutral-800
+                           transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                title="Next node"
+              >
+                <ChevronRight size={14} />
+              </button>
+            </>
+          )}
+
+          {/* Close button (hidden when locked) */}
+          {!locked && (
+            <button
+              onClick={handleClose}
+              className="p-2 rounded-xl text-neutral-600 hover:text-neutral-300
+                         hover:bg-neutral-800 transition-all"
+            >
+              <X size={16} />
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* ── Breadcrumb ── */}
+      <Breadcrumb node={node} nodes={nodes} />
 
       {/* ── Node name / label ── */}
       <div className="px-5 py-4 border-b border-neutral-800/50">
@@ -499,56 +570,43 @@ export const DetailPanel = ({ selectedNodeId, nodes, setNodes, onClose }) => {
                          hover:bg-neutral-800 transition-all opacity-0 group-hover:opacity-100 flex-shrink-0"
               title="Rename"
             >
-              <Edit3 size={13} />
+              <Edit3 size={12} />
             </button>
-          </div>
-        )}
-        {/* parent breadcrumb */}
-        {node.parentId && (
-          <div className="flex items-center gap-1 mt-1.5">
-            <span className="text-[11px] text-neutral-600">inside</span>
-            <span className="text-[11px] text-neutral-500 font-medium">
-              {nodes.find(n => n.id === node.parentId)?.data?.label ?? node.parentId}
-            </span>
           </div>
         )}
       </div>
 
-      {/* ── Scrollable content ── */}
+      {/* ── Scrollable content area ── */}
       <div className="flex-1 overflow-y-auto px-5 py-5 space-y-1">
         {SectionContent && <SectionContent draft={draft} setDraft={setDraft} />}
       </div>
 
-      {/* ── Save / Discard footer ── */}
-      <div className="px-5 py-4 border-t border-neutral-800/80 bg-neutral-950">
-        {isDirty ? (
-          <div className="flex gap-2">
+      {/* ── Footer with Save/Discard ── */}
+      <div className="border-t border-neutral-800 px-5 py-4 flex items-center gap-3 bg-neutral-900/80">
+        {saved ? (
+          <div className="flex items-center gap-2 text-emerald-400 text-sm font-medium">
+            <Check size={14} />
+            Saved
+          </div>
+        ) : isDirty ? (
+          <>
             <button
               onClick={commitSave}
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl
-                         bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold
-                         transition-all shadow-lg shadow-emerald-500/20"
+              className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white
+                         rounded-xl font-semibold text-sm transition-all"
             >
-              <Check size={15} /> Save Changes
+              Save Changes
             </button>
             <button
               onClick={discard}
-              className="px-4 py-2.5 rounded-xl bg-neutral-800 hover:bg-neutral-700
-                         text-neutral-400 hover:text-neutral-200 text-sm transition-all border border-neutral-700"
-              title="Discard changes"
+              className="px-4 py-2.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-300
+                         rounded-xl font-semibold text-sm transition-all"
             >
-              <RefreshCw size={15} />
+              Discard
             </button>
-          </div>
-        ) : saved ? (
-          <div className="flex items-center justify-center gap-2 py-2.5 rounded-xl
-                          bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-sm">
-            <Check size={15} /> Saved
-          </div>
+          </>
         ) : (
-          <div className="text-center text-[11px] text-neutral-700">
-            Edit any field above to make changes
-          </div>
+          <div className="text-neutral-600 text-sm">No changes</div>
         )}
       </div>
     </div>
