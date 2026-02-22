@@ -17,6 +17,10 @@ import ProjectNode   from './nodes/ProjectNode';
 import { useHistory }     from './hooks/useHistory';
 import { useNodeManager } from './hooks/useNodeManager';
 import { useEdgeManager } from './hooks/useEdgeManager';
+import { useAuth }        from './hooks/useAuth.jsx';
+import { useAutoSave }    from './hooks/useAutoSave';
+import { LoginScreen }    from './components/LoginScreen';
+import { LogOut, Save, Check } from 'lucide-react';
 import { EDGE_TYPES }     from './utils/constants';
 import {
   COMP_PAD_H, COMP_HEADER_H, FILE_GAP_V,
@@ -208,6 +212,8 @@ const initialEdges = [
 ];
 
 export default function App() {
+  const { user, loading: authLoading, signOut } = useAuth();
+
   const {
     nodes, edges,
     setNodes, setEdges,
@@ -222,38 +228,34 @@ export default function App() {
   const { addProject, addComponent } = useNodeManager(nodes, setNodes);
   const { handleConnect }            = useEdgeManager(setEdges, selectedEdgeType);
 
-  // ── Bulk select ──
   const selectedNodes  = nodes.filter(n => n.selected);
   const clearSelection = useCallback(() => {
     setNodes(nds => nds.map(n => n.selected ? { ...n, selected: false } : n));
   }, [setNodes]);
 
-  // ── Global keyboard shortcuts ──
+  // All hooks BEFORE conditional returns
+  const { saving, lastSaved } = useAutoSave(nodes, edges, user);
+
+  // Keyboard shortcuts
   useEffect(() => {
     const onKeyDown = (e) => {
       const mod = e.ctrlKey || e.metaKey;
-
-      // Undo: Ctrl/Cmd + Z
       if (mod && e.key === 'z' && !e.shiftKey) {
         e.preventDefault();
         undo();
       }
-      // Redo: Ctrl/Cmd + Y  or  Ctrl/Cmd + Shift + Z
       if ((mod && e.key === 'y') || (mod && e.shiftKey && e.key === 'z')) {
         e.preventDefault();
         redo();
       }
-      // Search: Ctrl/Cmd + K
       if (mod && e.key === 'k') {
         e.preventDefault();
         setSearchOpen(o => !o);
       }
-      // Close search: Escape
       if (e.key === 'Escape') {
         setSearchOpen(false);
       }
     };
-
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [undo, redo]);
@@ -266,10 +268,78 @@ export default function App() {
   const handlePaneClick = useCallback(() => setSelectedNodeId(null), []);
   const detailOpen = Boolean(selectedNodeId);
 
+  // NOW we can do conditional returns
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-neutral-950 flex items-center justify-center">
+        <div className="text-neutral-600">Loading...</div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <LoginScreen />;
+  }
+
+  // Format last saved time
+  const saveStatus = saving
+    ? 'Saving...'
+    : lastSaved
+    ? `Saved ${Math.floor((Date.now() - lastSaved.getTime()) / 1000)}s ago`
+    : null;
+
   return (
     <div style={{ width: '100vw', height: '100vh', position: 'relative', overflow: 'hidden', background: '#050505' }}>
 
-      <StatsPanel nodes={nodes} edges={edges} />
+      {/* User Header */}
+      <div className="fixed top-0 left-0 right-0 z-50 h-12 bg-neutral-900/95 backdrop-blur-xl
+                      border-b border-neutral-800 flex items-center justify-between px-4">
+        <div className="flex items-center gap-3">
+          <div className="text-sm font-semibold text-white">DevNotes</div>
+          {saveStatus && (
+            <div className="flex items-center gap-1.5 text-xs text-neutral-500">
+              {saving ? (
+                <>
+                  <Save size={12} className="animate-pulse text-cyan-400" />
+                  <span>{saveStatus}</span>
+                </>
+              ) : (
+                <>
+                  <Check size={12} className="text-emerald-400" />
+                  <span>{saveStatus}</span>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            {user.user_metadata?.avatar_url && (
+              <img
+                src={user.user_metadata.avatar_url}
+                alt={user.user_metadata?.full_name || user.email}
+                className="w-7 h-7 rounded-full border border-neutral-700"
+              />
+            )}
+            <span className="text-xs text-neutral-400">
+              {user.user_metadata?.full_name || user.email}
+            </span>
+          </div>
+          <button
+            onClick={signOut}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs
+                       bg-neutral-800 hover:bg-neutral-700 text-neutral-300
+                       rounded-lg transition-all"
+          >
+            <LogOut size={12} />
+            Sign Out
+          </button>
+        </div>
+      </div>
+
+      {/* Offset content for header */}
+      <div style={{ paddingTop: '48px', height: '100vh' }}>
+        <StatsPanel nodes={nodes} edges={edges} />
       <EdgeTypeSelector selectedEdgeType={selectedEdgeType} onEdgeTypeChange={setSelectedEdgeType} />
       <ToolbarPanel onAddProject={addProject} onAddComponent={addComponent} />
 
@@ -326,17 +396,18 @@ export default function App() {
         <kbd className="hidden sm:inline ml-1 px-1.5 py-0.5 bg-neutral-800 rounded text-[10px] text-neutral-600">⌘K</kbd>
       </button>
 
-      {detailOpen && (
-        <DetailPanel
-          selectedNodeId={selectedNodeId}
-          nodes={nodes} setNodes={setNodes}
-          onClose={(nextNodeId) => {
-            // If nextNodeId is passed, it's navigation (prev/next)
-            // Otherwise it's a close action
-            setSelectedNodeId(nextNodeId || null);
-          }}
-        />
-      )}
+        {detailOpen && (
+          <DetailPanel
+            selectedNodeId={selectedNodeId}
+            nodes={nodes} setNodes={setNodes}
+            onClose={(nextNodeId) => {
+              // If nextNodeId is passed, it's navigation (prev/next)
+              // Otherwise it's a close action
+              setSelectedNodeId(nextNodeId || null);
+            }}
+          />
+        )}
+      </div>
     </div>
   );
 }
