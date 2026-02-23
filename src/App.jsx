@@ -234,7 +234,7 @@ export default function App() {
   }, [setNodes]);
 
   // All hooks BEFORE conditional returns
-  const { saving, lastSaved } = useAutoSave(nodes, edges, user);
+  const { saving, lastSaved, loaded } = useAutoSave(nodes, edges, setNodes, setEdges, user);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -269,7 +269,7 @@ export default function App() {
   const detailOpen = Boolean(selectedNodeId);
 
   // NOW we can do conditional returns
-  if (authLoading) {
+  if (authLoading || (user && !loaded)) {
     return (
       <div className="min-h-screen bg-neutral-950 flex items-center justify-center">
         <div className="text-neutral-600">Loading...</div>
@@ -380,7 +380,7 @@ export default function App() {
       {/* Search trigger button — always visible */}
       <button
         onClick={() => setSearchOpen(true)}
-        className="fixed top-4 left-1/2 -translate-x-1/2 z-40
+        className="fixed top-16 left-1/2 -translate-x-1/2 z-40
                    flex items-center gap-2 px-4 py-2
                    bg-neutral-900/90 backdrop-blur-xl
                    border border-neutral-700/60 rounded-xl
