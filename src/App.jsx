@@ -20,6 +20,7 @@ import { useEdgeManager } from './hooks/useEdgeManager';
 import { useAuth }        from './hooks/useAuth.jsx';
 import { useAutoSave }    from './hooks/useAutoSave';
 import { LoginScreen }    from './components/LoginScreen';
+import { ErrorBoundary, ComponentErrorBoundary } from './components/ErrorBoundary';
 import { LogOut, Save, Check } from 'lucide-react';
 import { EDGE_TYPES }     from './utils/constants';
 import {
@@ -221,7 +222,7 @@ export default function App() {
     undo, redo, canUndo, canRedo,
   } = useHistory(initialNodes, initialEdges);
 
-  const [selectedEdgeType, setSelectedEdgeType] = useState(EDGE_TYPES.DEFAULT);
+  const [selectedEdgeType, setSelectedEdgeType] = useState(EDGE_TYPES.CALLS);
   const [selectedNodeId, setSelectedNodeId]     = useState(null);
   const [searchOpen, setSearchOpen]             = useState(false);
 
@@ -234,7 +235,7 @@ export default function App() {
   }, [setNodes]);
 
   // All hooks BEFORE conditional returns
-  const { saving, lastSaved } = useAutoSave(nodes, edges, user);
+  const { saving, lastSaved, loaded } = useAutoSave(nodes, edges, setNodes, setEdges, user);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -269,7 +270,7 @@ export default function App() {
   const detailOpen = Boolean(selectedNodeId);
 
   // NOW we can do conditional returns
-  if (authLoading) {
+  if (authLoading || (user && !loaded)) {
     return (
       <div className="min-h-screen bg-neutral-950 flex items-center justify-center">
         <div className="text-neutral-600">Loading...</div>
@@ -289,7 +290,8 @@ export default function App() {
     : null;
 
   return (
-    <div style={{ width: '100vw', height: '100vh', position: 'relative', overflow: 'hidden', background: '#050505' }}>
+    <ErrorBoundary>
+      <div style={{ width: '100vw', height: '100vh', position: 'relative', overflow: 'hidden', background: '#050505' }}>
 
       {/* User Header */}
       <div className="fixed top-0 left-0 right-0 z-50 h-12 bg-neutral-900/95 backdrop-blur-xl
@@ -348,19 +350,21 @@ export default function App() {
         right: detailOpen ? 360 : 0,
         transition: 'right 0.22s cubic-bezier(0.22,1,0.36,1)',
       }}>
-        <Canvas
-          nodes={nodes} edges={edges}
-          onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
-          onConnect={handleConnect}
-          onNodeClick={handleNodeClick} onPaneClick={handlePaneClick}
-          nodeTypes={nodeTypes}
-          canUndo={canUndo} canRedo={canRedo}
-          onUndo={undo}     onRedo={redo}
-          searchOpen={searchOpen}
-          onSearchClose={() => setSearchOpen(false)}
-          onAddProject={addProject}
-          onAddComponent={addComponent}
-        />
+        <ComponentErrorBoundary name="Canvas">
+          <Canvas
+            nodes={nodes} edges={edges}
+            onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
+            onConnect={handleConnect}
+            onNodeClick={handleNodeClick} onPaneClick={handlePaneClick}
+            nodeTypes={nodeTypes}
+            canUndo={canUndo} canRedo={canRedo}
+            onUndo={undo}     onRedo={redo}
+            searchOpen={searchOpen}
+            onSearchClose={() => setSearchOpen(false)}
+            onAddProject={addProject}
+            onAddComponent={addComponent}
+          />
+        </ComponentErrorBoundary>
       </div>
 
       <BulkActionsBar
@@ -380,7 +384,7 @@ export default function App() {
       {/* Search trigger button — always visible */}
       <button
         onClick={() => setSearchOpen(true)}
-        className="fixed top-4 left-1/2 -translate-x-1/2 z-40
+        className="fixed top-16 left-1/2 -translate-x-1/2 z-40
                    flex items-center gap-2 px-4 py-2
                    bg-neutral-900/90 backdrop-blur-xl
                    border border-neutral-700/60 rounded-xl
@@ -397,17 +401,20 @@ export default function App() {
       </button>
 
         {detailOpen && (
-          <DetailPanel
-            selectedNodeId={selectedNodeId}
-            nodes={nodes} setNodes={setNodes}
-            onClose={(nextNodeId) => {
-              // If nextNodeId is passed, it's navigation (prev/next)
-              // Otherwise it's a close action
-              setSelectedNodeId(nextNodeId || null);
-            }}
-          />
+          <ComponentErrorBoundary name="DetailPanel">
+            <DetailPanel
+              selectedNodeId={selectedNodeId}
+              nodes={nodes} setNodes={setNodes}
+              onClose={(nextNodeId) => {
+                // If nextNodeId is passed, it's navigation (prev/next)
+                // Otherwise it's a close action
+                setSelectedNodeId(nextNodeId || null);
+              }}
+            />
+          </ComponentErrorBoundary>
         )}
       </div>
     </div>
+    </ErrorBoundary>
   );
 }

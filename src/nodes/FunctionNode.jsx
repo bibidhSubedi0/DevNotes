@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { sanitizeLabel } from '../utils/sanitize';
 import { Handle, Position, useReactFlow } from '@xyflow/react';
 import { Code2, Check, X } from 'lucide-react';
 
@@ -14,7 +15,7 @@ export default function FunctionNode({ id, data, selected }) {
   const { setNodes } = useReactFlow();
 
   const saveLabel = () => {
-    const trimmed = labelValue.trim();
+    const trimmed = sanitizeLabel(labelValue);
     if (trimmed)
       setNodes(nodes => nodes.map(n => n.id === id ? { ...n, data: { ...n.data, label: trimmed } } : n));
     else
@@ -33,9 +34,9 @@ export default function FunctionNode({ id, data, selected }) {
   return (
     <div className="relative">
       <div className={`
-        flex items-center gap-2 px-3 py-2
+        flex items-center gap-2.5 px-4 py-3
         bg-neutral-900 border rounded-lg
-        transition-all duration-150 w-[248px]
+        transition-all duration-150 w-[280px]
         ${isEmpty ? 'opacity-40' : 'opacity-100'}
         ${selected
           ? 'border-emerald-500/70 shadow-sm shadow-emerald-500/20 ring-2 ring-emerald-500/10'
@@ -44,7 +45,7 @@ export default function FunctionNode({ id, data, selected }) {
 
         {/* Complexity-tinted icon */}
         <div className={`p-1 rounded-md flex-shrink-0 ${cx ? cx.bg : 'bg-neutral-800'}`}>
-          <Code2 size={12} className={cx ? cx.icon : 'text-neutral-500'} />
+          <Code2 size={14} className={cx ? cx.icon : 'text-neutral-500'} />
         </div>
 
         {/* Name / inline rename */}
@@ -63,7 +64,7 @@ export default function FunctionNode({ id, data, selected }) {
         ) : (
           <>
             <span
-              className="flex-1 min-w-0 text-xs font-mono text-neutral-300 truncate
+              className="flex-1 min-w-0 text-sm font-mono text-neutral-300 truncate
                          cursor-pointer hover:text-emerald-300 transition-colors"
               onDoubleClick={e => { e.stopPropagation(); setIsEditingLabel(true); setLabelValue(data.label); }}
               title="Double-click to rename · click to open details"

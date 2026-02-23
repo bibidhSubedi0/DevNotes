@@ -1,4 +1,5 @@
 import { Handle, Position, useReactFlow } from '@xyflow/react';
+import { sanitizeLabel } from '../utils/sanitize';
 import { FileCode, Plus, Code2, FileJson, FileType, FileText, Check, X, ChevronRight, ChevronDown } from 'lucide-react';
 import { useCallback, useState, useEffect } from 'react';
 import {
@@ -31,6 +32,19 @@ export default function FileNode({ id, data, selected }) {
   const fnCount        = childFunctions.length;
   const calculatedHeight = calcFileH(fnCount, isCollapsed);
 
+ const documented = childFunctions.filter(f => f.data?.description && f.data.description.trim() !== '').length;
+const coverage = fnCount === 0 ? 0 : documented / fnCount;
+
+  let docBadgeColor;
+
+  if (coverage >= 0.8) {
+    docBadgeColor = "emerald";
+  } else if (coverage >= 0.4) {
+    docBadgeColor = "amber";
+  } else {
+    docBadgeColor = "red";
+  }
+
   // Sync file height + notify parent on change
   useEffect(() => {
     setNodes(nodes => {
@@ -41,6 +55,8 @@ export default function FileNode({ id, data, selected }) {
           return { ...node, style: { ...node.style, height: calculatedHeight, width: FILE_W } };
         if (node.id === parentId)
           return { ...node, data: { ...node.data, _childUpdate: Date.now() } };
+        if (node.parentId === id && node.type === 'function')
+        return { ...node, extent: 'parent' };
         return node;
       });
     });
@@ -92,7 +108,8 @@ export default function FileNode({ id, data, selected }) {
           type:     'function',
           parentId: id,
           position: { x: 16, y: fnY(siblings.length) },
-          extent:   [[0, 50], [FILE_W, newHeight]],
+          // extent:   [[0, 50], [FILE_W, newHeight]],
+          extent: 'parent',
           draggable: true,
           data:     { label: 'newFunction()', description: '' },
         },
@@ -102,9 +119,10 @@ export default function FileNode({ id, data, selected }) {
 
   // ── Label edit ──
   const handleSave   = () => {
-    if (editValue.trim())
+    const sanitized = sanitizeLabel(editValue);
+    if (sanitized)
       setNodes(nodes => nodes.map(n =>
-        n.id === id ? { ...n, data: { ...n.data, label: editValue.trim() } } : n
+        n.id === id ? { ...n, data: { ...n.data, label: sanitized } } : n
       ));
     setIsEditing(false);
   };
@@ -116,15 +134,7 @@ export default function FileNode({ id, data, selected }) {
 
   const highCount = childFunctions.filter(f => f.data?.complexity === 'high').length;
   const medCount  = childFunctions.filter(f => f.data?.complexity === 'medium').length;
-  const documented = childFunctions.filter(f => f.data?.description?.trim()).length;
-  const docBadgeColor =
-    fnCount === 0
-      ? 'red'
-      : documented === fnCount
-      ? 'emerald'
-      : documented > 0
-      ? 'amber'
-      : 'red';
+
   return (
     <div
       className={`

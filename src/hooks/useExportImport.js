@@ -1,4 +1,5 @@
 import { useCallback, useRef } from 'react';
+import { sanitizeImportData } from '../utils/sanitize';
 
 const FILE_VERSION = 1;
 
@@ -42,22 +43,26 @@ export const useExportImport = (nodes, edges, setNodes, setEdges) => {
     const reader = new FileReader();
     reader.onload = (event) => {
       try {
-        const data = JSON.parse(event.target.result);
+        const raw = JSON.parse(event.target.result);
 
         // Basic validation
-        if (!Array.isArray(data.nodes) || !Array.isArray(data.edges)) {
+        if (!Array.isArray(raw.nodes) || !Array.isArray(raw.edges)) {
           onError('Invalid file — missing nodes or edges.');
           return;
         }
-        if (data.version !== FILE_VERSION) {
+        if (raw.version !== FILE_VERSION) {
           // Still try to load, just warn
-          console.warn(`File version ${data.version}, expected ${FILE_VERSION}. Loading anyway.`);
+          console.warn(`File version ${raw.version}, expected ${FILE_VERSION}. Loading anyway.`);
         }
 
-        setNodes(data.nodes);
-        setEdges(data.edges);
-        onSuccess(data);
-      } catch {
+        // SANITIZE imported data to prevent XSS
+        const sanitized = sanitizeImportData(raw);
+
+        setNodes(sanitized.nodes);
+        setEdges(sanitized.edges);
+        onSuccess(sanitized);
+      } catch (err) {
+        console.error('Import error:', err);
         onError('Could not parse file — make sure it\'s a valid .devnotes.json file.');
       }
     };

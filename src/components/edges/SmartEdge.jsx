@@ -1,4 +1,5 @@
 import { BaseEdge, EdgeLabelRenderer, getBezierPath, useReactFlow } from '@xyflow/react';
+import { useState } from 'react';
 import { useMemo } from 'react';
 import { EDGE_CONFIGS } from '../../utils/constants';
 
@@ -16,6 +17,7 @@ export const SmartEdge = ({
   style = {},
 }) => {
   const { getNodes, getEdges } = useReactFlow();
+  const [isHovered, setIsHovered] = useState(false);
 
   const [edgePath, labelX, labelY] = getBezierPath({
     sourceX, sourceY, sourcePosition,
@@ -30,20 +32,20 @@ export const SmartEdge = ({
     const edges = getEdges();
     const anySelected = nodes.some(n => n.selected);
 
-    if (!anySelected) return 0.55; // resting — slightly faded, less visual noise
+    if (!anySelected) return 0.8; // resting — slightly faded, less visual noise
 
     // Is this edge connected to a selected node?
     const connectedToSelected = nodes
       .filter(n => n.selected)
       .some(n => n.id === source || n.id === target);
 
-    return connectedToSelected ? 1 : 0.06;
+    return connectedToSelected ? 1 : 0.8;
   }, [getNodes, getEdges, source, target]);
 
   // ── Color from edge data or config ───────────────────────────────────────
   const color = style?.stroke ?? data?.color ?? EDGE_CONFIGS.default?.color ?? '#6366f1';
 
-  const strokeWidth = selected ? 3 : 1.5;
+  const strokeWidth = selected ? 3 : isHovered ? 2.5 : 1.5;
 
   return (
     <>
@@ -53,6 +55,8 @@ export const SmartEdge = ({
         fill="none"
         stroke="transparent"
         strokeWidth={16}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
         style={{ cursor: 'pointer' }}
       />
 

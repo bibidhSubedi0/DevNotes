@@ -32,7 +32,7 @@ export const ExportImportPanel = ({ nodes, edges, setNodes, setEdges }) => {
   `;
 
   return (
-    <div className="fixed top-4 right-4 z-40 flex flex-col items-end gap-2">
+    <div className="fixed top-16 right-4 z-40 flex flex-col items-end gap-2">
 
       {/* Toast */}
       {toast && (

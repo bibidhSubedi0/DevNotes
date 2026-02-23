@@ -3,16 +3,17 @@ import { supabase } from '../lib/supabaseClient';
 
 const AUTOSAVE_DELAY = 2000; // 2 seconds after last change
 
-export const useAutoSave = (nodes, edges, user) => {
+export const useAutoSave = (nodes, edges, setNodes, setEdges, user) => {
   const [saving, setSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState(null);
   const [currentDiagramId, setCurrentDiagramId] = useState(null);
+  const [loaded, setLoaded] = useState(false);
   const timeoutRef = useRef(null);
   const lastSaveRef = useRef(null);
 
   // Load diagram on mount
   useEffect(() => {
-    if (!user) return;
+    if (!user || loaded) return;
 
     const loadDiagram = async () => {
       const { data, error } = await supabase
@@ -26,14 +27,17 @@ export const useAutoSave = (nodes, edges, user) => {
       if (error && error.code !== 'PGRST116') {
         // PGRST116 = no rows, that's fine for new users
         console.error('Error loading diagram:', error);
+        setLoaded(true);
         return;
       }
 
       if (data) {
         setCurrentDiagramId(data.id);
         setLastSaved(new Date(data.updated_at));
-        // Return the loaded data so App can set it
-        return data;
+        // Update nodes and edges with loaded data
+        setNodes(data.nodes || []);
+        setEdges(data.edges || []);
+        setLoaded(true);
       } else {
         // Create first diagram for new user
         const { data: newDiagram, error: createError } = await supabase
@@ -49,21 +53,22 @@ export const useAutoSave = (nodes, edges, user) => {
 
         if (createError) {
           console.error('Error creating diagram:', createError);
-          return null;
+          setLoaded(true);
+          return;
         }
 
         setCurrentDiagramId(newDiagram.id);
         setLastSaved(new Date(newDiagram.updated_at));
-        return newDiagram;
+        setLoaded(true);
       }
     };
 
     loadDiagram();
-  }, [user]);
+  }, [user, loaded, setNodes, setEdges]);
 
-  // Auto-save on changes
+  // Auto-save on changes (only after initial load)
   const saveDiagram = useCallback(async () => {
-    if (!user || !currentDiagramId) return;
+    if (!user || !currentDiagramId || !loaded) return;
 
     const payload = { nodes, edges };
     const payloadStr = JSON.stringify(payload);
@@ -90,11 +95,11 @@ export const useAutoSave = (nodes, edges, user) => {
     }
 
     setSaving(false);
-  }, [nodes, edges, user, currentDiagramId]);
+  }, [nodes, edges, user, currentDiagramId, loaded]);
 
   // Debounced save on every change
   useEffect(() => {
-    if (!user || !currentDiagramId) return;
+    if (!user || !currentDiagramId || !loaded) return;
 
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
 
@@ -105,7 +110,7 @@ export const useAutoSave = (nodes, edges, user) => {
     return () => {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
-  }, [nodes, edges, user, currentDiagramId, saveDiagram]);
+  }, [nodes, edges, user, currentDiagramId, loaded, saveDiagram]);
 
-  return { saving, lastSaved, currentDiagramId };
+  return { saving, lastSaved, loaded };
 };

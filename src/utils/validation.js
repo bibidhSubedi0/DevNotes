@@ -1,128 +1,115 @@
 /**
  * Client-side validation utilities for DevNotes
+ * Now with proper XSS sanitization
  */
+
+import { sanitizeLabel, sanitizeDescription } from './sanitize';
 
 // Validation rules
 export const VALIDATION_RULES = {
   NODE_LABEL: {
     minLength: 1,
-    maxLength: 50,
-    pattern: /^[a-zA-Z0-9\s_\-\.()]+$/,
+    maxLength: 200,  // Increased from 50 to allow longer names
     errorMessages: {
       empty: 'Name cannot be empty',
-      tooLong: 'Name must be 50 characters or less',
-      invalidChars: 'Only letters, numbers, spaces, and _-.() allowed'
+      tooLong: 'Name must be 200 characters or less',
     }
   },
   FUNCTION_NAME: {
     minLength: 1,
-    maxLength: 100,
-    pattern: /^[a-zA-Z_$][a-zA-Z0-9_$]*\s*\(.*\)?\s*$/,
+    maxLength: 200,
     errorMessages: {
       empty: 'Function name cannot be empty',
-      tooLong: 'Function name must be 100 characters or less',
-      invalidFormat: 'Must be valid function syntax (e.g., myFunc())'
+      tooLong: 'Function name must be 200 characters or less',
     }
   },
   DESCRIPTION: {
     minLength: 0,
-    maxLength: 500,
+    maxLength: 50000,  // Increased for long descriptions
     errorMessages: {
-      tooLong: 'Description must be 500 characters or less'
+      tooLong: 'Description must be 50,000 characters or less'
     }
   },
   CUSTOM_FILE_TYPE: {
     minLength: 1,
     maxLength: 30,
-    pattern: /^[a-zA-Z0-9\s_\-\.+#]+$/,
     errorMessages: {
       empty: 'File type cannot be empty',
       tooLong: 'File type must be 30 characters or less',
-      invalidChars: 'Only letters, numbers, and _-.+# allowed'
     }
   }
 };
 
 /**
  * Validate node label (Project, Component, File names)
+ * Now includes XSS sanitization
  */
 export const validateNodeLabel = (label) => {
-  const trimmed = label.trim();
+  const sanitized = sanitizeLabel(label);
   const rules = VALIDATION_RULES.NODE_LABEL;
 
-  if (trimmed.length === 0) {
+  if (sanitized.length === 0) {
     return { valid: false, error: rules.errorMessages.empty };
   }
 
-  if (trimmed.length > rules.maxLength) {
+  if (sanitized.length > rules.maxLength) {
     return { valid: false, error: rules.errorMessages.tooLong };
   }
 
-  if (!rules.pattern.test(trimmed)) {
-    return { valid: false, error: rules.errorMessages.invalidChars };
-  }
-
-  return { valid: true, value: trimmed };
+  return { valid: true, value: sanitized };
 };
 
 /**
  * Validate function name
+ * Now includes XSS sanitization
  */
 export const validateFunctionName = (name) => {
-  const trimmed = name.trim();
+  const sanitized = sanitizeLabel(name);
   const rules = VALIDATION_RULES.FUNCTION_NAME;
 
-  if (trimmed.length === 0) {
+  if (sanitized.length === 0) {
     return { valid: false, error: rules.errorMessages.empty };
   }
 
-  if (trimmed.length > rules.maxLength) {
+  if (sanitized.length > rules.maxLength) {
     return { valid: false, error: rules.errorMessages.tooLong };
   }
 
-  // Allow flexible function syntax
-  const basicPattern = /^[a-zA-Z_$]/;
-  if (!basicPattern.test(trimmed)) {
-    return { valid: false, error: rules.errorMessages.invalidFormat };
-  }
-
-  return { valid: true, value: trimmed };
+  return { valid: true, value: sanitized };
 };
 
 /**
  * Validate description text
+ * Now includes XSS sanitization
  */
 export const validateDescription = (description) => {
-  const trimmed = description.trim();
+  const sanitized = sanitizeDescription(description);
   const rules = VALIDATION_RULES.DESCRIPTION;
 
-  if (trimmed.length > rules.maxLength) {
+  if (sanitized.length > rules.maxLength) {
     return { valid: false, error: rules.errorMessages.tooLong };
   }
 
-  return { valid: true, value: trimmed };
+  return { valid: true, value: sanitized };
 };
 
 /**
  * Validate custom file type
+ * Now includes XSS sanitization
  */
 export const validateCustomFileType = (type) => {
-  const trimmed = type.trim();
+  const sanitized = sanitizeLabel(type);
   const rules = VALIDATION_RULES.CUSTOM_FILE_TYPE;
 
-  if (trimmed.length === 0) {
+  if (sanitized.length === 0) {
     return { valid: false, error: rules.errorMessages.empty };
   }
 
-  if (trimmed.length > rules.maxLength) {
+  if (sanitized.length > rules.maxLength) {
     return { valid: false, error: rules.errorMessages.tooLong };
   }
 
-  if (!rules.pattern.test(trimmed)) {
-    return { valid: false, error: rules.errorMessages.invalidChars };
-  }
-
-  return { valid: true, value: trimmed };
+  return { valid: true, value: sanitized };
 };
 
 /**
@@ -139,13 +126,9 @@ export const validateUniqueName = (name, existingNames) => {
 };
 
 /**
- * Sanitize input to prevent XSS (basic)
+ * @deprecated Use sanitizeLabel or sanitizeDescription from sanitize.js instead
  */
 export const sanitizeInput = (input) => {
-  return input
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#x27;')
-    .trim();
+  console.warn('sanitizeInput is deprecated, use sanitizeLabel/sanitizeDescription from sanitize.js');
+  return sanitizeLabel(input);
 };

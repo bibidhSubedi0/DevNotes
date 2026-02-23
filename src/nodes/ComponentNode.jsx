@@ -1,4 +1,5 @@
 import { Handle, Position, useReactFlow } from '@xyflow/react';
+import { sanitizeLabel } from '../utils/sanitize';
 import { Cpu, Plus, Check, X } from 'lucide-react';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import {
@@ -8,10 +9,10 @@ import {
 } from '../utils/layoutConstants';
 
 const validateLabel = (label) => {
-  const t = label.trim();
-  if (!t)            return { valid: false, error: 'Cannot be empty' };
-  if (t.length > 50) return { valid: false, error: 'Max 50 characters' };
-  return { valid: true, sanitized: t };
+  const sanitized = sanitizeLabel(label);
+  if (!sanitized)            return { valid: false, error: 'Cannot be empty' };
+  if (sanitized.length > 50) return { valid: false, error: 'Max 50 characters' };
+  return { valid: true, sanitized };
 };
 
 export default function ComponentNode({ id, data, selected }) {

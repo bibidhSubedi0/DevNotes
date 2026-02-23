@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { sanitizeLabel, sanitizeDescription, sanitizeTags } from '../../utils/sanitize';
 import {
   X, Code2, FileType2, Cpu, FolderGit2,
   Tag, ArrowRight, Layers, ChevronRight, ChevronLeft,
@@ -57,7 +58,7 @@ const TextareaField = ({ value, onChange, placeholder, rows = 10, autoFocus = fa
     <textarea
       ref={textareaRef}
       value={value}
-      onChange={e => onChange(e.target.value)}
+      onChange={e => onChange(sanitizeDescription(e.target.value))}
       placeholder={placeholder}
       rows={rows}
       autoFocus={autoFocus}
@@ -74,7 +75,7 @@ const InputField = ({ value, onChange, placeholder }) => (
   <input
     type="text"
     value={value}
-    onChange={e => onChange(e.target.value)}
+    onChange={e => onChange(sanitizeLabel(e.target.value))}
     placeholder={placeholder}
     className="w-full bg-neutral-800/80 text-neutral-200 text-sm px-3 py-2 rounded-xl
                border border-neutral-700 focus:border-neutral-500 focus:outline-none
@@ -87,7 +88,7 @@ const TagEditor = ({ tags = [], onChange, placeholder, color = 'neutral' }) => {
   const [inputVal, setInputVal] = useState('');
 
   const addTag = () => {
-    const t = inputVal.trim();
+    const t = sanitizeLabel(inputVal.trim());
     if (t && !tags.includes(t)) onChange([...tags, t]);
     setInputVal('');
   };
@@ -425,9 +426,10 @@ export const DetailPanel = ({ selectedNodeId, nodes, setNodes, onClose }) => {
 
   // Save label
   const saveLabel = () => {
-    const trimmed = labelDraft.trim();
-    if (trimmed) {
-      setDraft(d => ({ ...d, label: trimmed }));
+    const sanitized = sanitizeLabel(labelDraft);
+    if (sanitized) {
+      setDraft(d => ({ ...d, label: sanitized }));
+      setLabelDraft(sanitized);
     } else {
       setLabelDraft(draft.label);
     }
@@ -469,10 +471,13 @@ export const DetailPanel = ({ selectedNodeId, nodes, setNodes, onClose }) => {
 
   return (
     <div
-      className="fixed right-0 top-0 h-screen w-[360px] z-40
+      className="fixed right-0 top-12 w-[360px] z-40
                  bg-neutral-950/98 backdrop-blur-xl border-l border-neutral-800
                  flex flex-col shadow-2xl"
-      style={{ animation: 'slideInFromRight 0.22s cubic-bezier(0.22,1,0.36,1)' }}
+      style={{ 
+        height: 'calc(100vh - 48px)',
+        animation: 'slideInFromRight 0.22s cubic-bezier(0.22,1,0.36,1)' 
+      }}
     >
       {/* ── accent line ── */}
       <div style={accentStyle} />
