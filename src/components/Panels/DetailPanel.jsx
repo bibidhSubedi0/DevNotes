@@ -469,10 +469,13 @@ export const DetailPanel = ({ selectedNodeId, nodes, setNodes, onClose }) => {
 
   return (
     <div
-      className="fixed right-0 top-0 h-screen w-[360px] z-40
+      className="fixed right-0 top-12 w-[360px] z-40
                  bg-neutral-950/98 backdrop-blur-xl border-l border-neutral-800
                  flex flex-col shadow-2xl"
-      style={{ animation: 'slideInFromRight 0.22s cubic-bezier(0.22,1,0.36,1)' }}
+      style={{ 
+        height: 'calc(100vh - 48px)',
+        animation: 'slideInFromRight 0.22s cubic-bezier(0.22,1,0.36,1)' 
+      }}
     >
       {/* ── accent line ── */}
       <div style={accentStyle} />

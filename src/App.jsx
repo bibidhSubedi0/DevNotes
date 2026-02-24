@@ -221,7 +221,7 @@ export default function App() {
     undo, redo, canUndo, canRedo,
   } = useHistory(initialNodes, initialEdges);
 
-  const [selectedEdgeType, setSelectedEdgeType] = useState(EDGE_TYPES.DEFAULT);
+  const [selectedEdgeType, setSelectedEdgeType] = useState(EDGE_TYPES.CALLS);
   const [selectedNodeId, setSelectedNodeId]     = useState(null);
   const [searchOpen, setSearchOpen]             = useState(false);
 

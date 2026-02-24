@@ -31,6 +31,19 @@ export default function FileNode({ id, data, selected }) {
   const fnCount        = childFunctions.length;
   const calculatedHeight = calcFileH(fnCount, isCollapsed);
 
+ const documented = childFunctions.filter(f => f.data?.description && f.data.description.trim() !== '').length;
+const coverage = fnCount === 0 ? 0 : documented / fnCount;
+
+  let docBadgeColor;
+
+  if (coverage >= 0.8) {
+    docBadgeColor = "emerald";
+  } else if (coverage >= 0.4) {
+    docBadgeColor = "amber";
+  } else {
+    docBadgeColor = "red";
+  }
+
   // Sync file height + notify parent on change
   useEffect(() => {
     setNodes(nodes => {
@@ -41,6 +54,8 @@ export default function FileNode({ id, data, selected }) {
           return { ...node, style: { ...node.style, height: calculatedHeight, width: FILE_W } };
         if (node.id === parentId)
           return { ...node, data: { ...node.data, _childUpdate: Date.now() } };
+        if (node.parentId === id && node.type === 'function')
+        return { ...node, extent: 'parent' };
         return node;
       });
     });
@@ -92,7 +107,8 @@ export default function FileNode({ id, data, selected }) {
           type:     'function',
           parentId: id,
           position: { x: 16, y: fnY(siblings.length) },
-          extent:   [[0, 50], [FILE_W, newHeight]],
+          // extent:   [[0, 50], [FILE_W, newHeight]],
+          extent: 'parent',
           draggable: true,
           data:     { label: 'newFunction()', description: '' },
         },
@@ -116,15 +132,7 @@ export default function FileNode({ id, data, selected }) {
 
   const highCount = childFunctions.filter(f => f.data?.complexity === 'high').length;
   const medCount  = childFunctions.filter(f => f.data?.complexity === 'medium').length;
-  const documented = childFunctions.filter(f => f.data?.description?.trim()).length;
-  const docBadgeColor =
-    fnCount === 0
-      ? 'red'
-      : documented === fnCount
-      ? 'emerald'
-      : documented > 0
-      ? 'amber'
-      : 'red';
+
   return (
     <div
       className={`
