@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { sanitizeLabel, sanitizeDescription, sanitizeTags } from '../utils/sanitize';
+import { sanitizeLabel, sanitizeDescription, sanitizeTags } from '../../utils/sanitize';
 import {
   X, Code2, FileType2, Cpu, FolderGit2,
   Tag, ArrowRight, Layers, ChevronRight, ChevronLeft,
