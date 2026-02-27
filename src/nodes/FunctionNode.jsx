@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { sanitizeLabel } from '../utils/sanitize';
 import { Handle, Position, useReactFlow } from '@xyflow/react';
 import { Code2, Check, X } from 'lucide-react';
 
@@ -14,7 +15,7 @@ export default function FunctionNode({ id, data, selected }) {
   const { setNodes } = useReactFlow();
 
   const saveLabel = () => {
-    const trimmed = labelValue.trim();
+    const trimmed = sanitizeLabel(labelValue);
     if (trimmed)
       setNodes(nodes => nodes.map(n => n.id === id ? { ...n, data: { ...n.data, label: trimmed } } : n));
     else

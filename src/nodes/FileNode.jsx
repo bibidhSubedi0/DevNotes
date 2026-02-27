@@ -1,4 +1,5 @@
 import { Handle, Position, useReactFlow } from '@xyflow/react';
+import { sanitizeLabel } from '../utils/sanitize';
 import { FileCode, Plus, Code2, FileJson, FileType, FileText, Check, X, ChevronRight, ChevronDown } from 'lucide-react';
 import { useCallback, useState, useEffect } from 'react';
 import {
@@ -118,9 +119,10 @@ const coverage = fnCount === 0 ? 0 : documented / fnCount;
 
   // ── Label edit ──
   const handleSave   = () => {
-    if (editValue.trim())
+    const sanitized = sanitizeLabel(editValue);
+    if (sanitized)
       setNodes(nodes => nodes.map(n =>
-        n.id === id ? { ...n, data: { ...n.data, label: editValue.trim() } } : n
+        n.id === id ? { ...n, data: { ...n.data, label: sanitized } } : n
       ));
     setIsEditing(false);
   };
