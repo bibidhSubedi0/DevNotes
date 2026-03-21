@@ -1,12 +1,17 @@
 import { Handle, Position, useReactFlow } from '@xyflow/react';
 import { sanitizeLabel } from '../utils/sanitize';
-import { FileCode, Plus, Code2, FileJson, FileType, FileText, Check, X, ChevronRight, ChevronDown } from 'lucide-react';
+import { FileCode, Plus, Code2, FileJson, FileType, FileText, Check, X, ChevronRight, ChevronDown, Minus } from 'lucide-react';
 import { useCallback, useState, useEffect, useRef, useMemo } from 'react';
 import {
-  FILE_W_MIN, FILE_W_MAX, FILE_COLLAPSED_H,
+  FILE_W_MIN, FILE_W_MAX, FILE_COLLAPSED_H, FILE_MIN_EXP,
   FN_SLOT, FN_START_Y,
-  calcFileH, layoutFunctions,
+  layoutFunctions,
 } from '../utils/layoutConstants';
+
+const FN_GAP_MIN   = 40;
+const FN_GAP_MAX   = 160;
+const FN_GAP_H_MIN = 8;
+const FN_GAP_H_MAX = 200;
 
 const fileIcons = {
   typescript: { icon: FileType,  color: 'text-blue-300',   bg: 'bg-blue-500/10' },
@@ -24,36 +29,44 @@ export default function FileNode({ id, data, selected }) {
 
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(data.label);
-  const [dragWidth, setDragWidth] = useState(null);
+  const [dragWidth,  setDragWidth]  = useState(null);
+  const [dragHeight, setDragHeight] = useState(null);
 
-  const savedWidth   = Math.max(FILE_W_MIN, data.width ?? FILE_W_MIN);
+  const savedWidth  = Math.max(FILE_W_MIN,   data.width  ?? FILE_W_MIN);
+  const savedHeight = data.manualHeight ?? null;
+  const fnGap       = Math.max(FN_GAP_MIN,   Math.min(FN_GAP_MAX,   data.fnGap  ?? FN_SLOT));
+  const fnGapH      = Math.max(FN_GAP_H_MIN, Math.min(FN_GAP_H_MAX, data.fnGapH ?? 16));
+
   const currentWidth = dragWidth ?? savedWidth;
 
   const nodes          = getNodes();
   const childFunctions = nodes.filter(n => n.parentId === id && n.type === 'function');
   const fnCount        = childFunctions.length;
 
-  // Multi-column layout for functions
-  const { positions: fnPositions, fileHeight: expandedHeight } = useMemo(
-    () => layoutFunctions(childFunctions, currentWidth),
+  // Multi-column layout — passes both gap overrides
+  const { positions: fnPositions, fileHeight: autoHeight } = useMemo(
+    () => layoutFunctions(childFunctions, currentWidth, fnGap, fnGapH),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [fnCount, currentWidth, id]
+    [fnCount, currentWidth, fnGap, fnGapH, id]
   );
 
-  const calculatedHeight = isCollapsed ? FILE_COLLAPSED_H : expandedHeight;
+  // Height: collapsed → fixed pill; dragging → drag value; manual set → saved; else auto
+  const calculatedHeight = isCollapsed
+    ? FILE_COLLAPSED_H
+    : dragHeight ?? savedHeight ?? autoHeight;
 
-  const documented   = childFunctions.filter(f => f.data?.description?.trim()).length;
-  const coverage     = fnCount === 0 ? 0 : documented / fnCount;
+  const documented    = childFunctions.filter(f => f.data?.description?.trim()).length;
+  const coverage      = fnCount === 0 ? 0 : documented / fnCount;
   const docBadgeColor = coverage >= 0.8 ? 'emerald' : coverage >= 0.4 ? 'amber' : 'red';
-  const highCount    = childFunctions.filter(f => f.data?.complexity === 'high').length;
-  const medCount     = childFunctions.filter(f => f.data?.complexity === 'medium').length;
-  const numCols      = fnPositions.length > 0
-    ? Math.round((Math.max(...fnPositions.map(p => p.x)) - 16) / (280 + 16)) + 1
+  const highCount     = childFunctions.filter(f => f.data?.complexity === 'high').length;
+  const medCount      = childFunctions.filter(f => f.data?.complexity === 'medium').length;
+  const numCols       = fnPositions.length > 1
+    ? new Set(fnPositions.map(p => p.x)).size
     : 1;
 
-  // Sync file size + reposition functions whenever width/height/count changes
+  // ── Sync positions + notify parent ──
   const lastSigRef = useRef('');
-  const sig = `${Math.round(currentWidth)}|${fnCount}|${isCollapsed ? 'c' : 'e'}`;
+  const sig = `${Math.round(currentWidth)}|${Math.round(calculatedHeight)}|${fnGap}|${fnGapH}|${fnCount}|${isCollapsed ? 'c' : 'e'}`;
 
   useEffect(() => {
     if (lastSigRef.current === sig) return;
@@ -67,61 +80,71 @@ export default function FileNode({ id, data, selected }) {
       return nodes.map(node => {
         if (node.id === id)
           return { ...node, style: { ...node.style, width: savedWidth, height: calculatedHeight } };
-
         if (node.id === compId)
           return { ...node, data: { ...node.data, _childUpdate: Date.now() } };
-
-        // Reposition functions into their columns (skip when collapsed)
         if (node.parentId === id && node.type === 'function' && !isCollapsed) {
           const pos = posMap.get(node.id);
           if (pos) return { ...node, position: { x: pos.x, y: pos.y } };
         }
-
         return node;
       });
     });
   }, [sig, fnPositions, calculatedHeight, savedWidth, id, setNodes, isCollapsed]);
 
-  // ── Resize handle (same pattern as ComponentNode) ──
-  const resizeHandleRef = useRef(null);
+  // ── Refs for resize handlers ──
   const savedWidthRef   = useRef(savedWidth);
+  const savedHeightRef  = useRef(savedHeight ?? autoHeight);
   const setNodesRef     = useRef(setNodes);
-  savedWidthRef.current = savedWidth;
-  setNodesRef.current   = setNodes;
+  savedWidthRef.current  = savedWidth;
+  savedHeightRef.current = savedHeight ?? autoHeight;
+  setNodesRef.current    = setNodes;
 
+  // ── Right-edge resize (width) ──
+  const rightHandleRef = useRef(null);
   useEffect(() => {
-    const handle = resizeHandleRef.current;
+    const handle = rightHandleRef.current;
     if (!handle) return;
-
     const onMouseDown = (e) => {
-      e.stopPropagation();
-      e.stopImmediatePropagation();
-      e.preventDefault();
-
-      const startX     = e.clientX;
-      const startWidth = savedWidthRef.current;
-
-      const onMove = (moveE) => {
-        const w = Math.max(FILE_W_MIN, Math.min(FILE_W_MAX, startWidth + (moveE.clientX - startX)));
-        setDragWidth(Math.round(w));
-      };
-
-      const onUp = (upE) => {
-        const finalW = Math.max(FILE_W_MIN, Math.min(FILE_W_MAX, startWidth + (upE.clientX - startX)));
-        setNodesRef.current(nodes => nodes.map(n =>
-          n.id === id
-            ? { ...n, data: { ...n.data, width: Math.round(finalW) }, style: { ...n.style, width: Math.round(finalW) } }
-            : n
-        ));
+      e.stopPropagation(); e.stopImmediatePropagation(); e.preventDefault();
+      const startX = e.clientX, startW = savedWidthRef.current;
+      const onMove = (me) => setDragWidth(Math.round(Math.max(FILE_W_MIN, Math.min(FILE_W_MAX, startW + (me.clientX - startX)))));
+      const onUp   = (ue) => {
+        const finalW = Math.round(Math.max(FILE_W_MIN, Math.min(FILE_W_MAX, startW + (ue.clientX - startX))));
+        setNodesRef.current(nds => nds.map(n => n.id === id
+          ? { ...n, data: { ...n.data, width: finalW }, style: { ...n.style, width: finalW } }
+          : n));
         setDragWidth(null);
         window.removeEventListener('mousemove', onMove);
-        window.removeEventListener('mouseup',   onUp);
+        window.removeEventListener('mouseup', onUp);
       };
-
       window.addEventListener('mousemove', onMove);
-      window.addEventListener('mouseup',   onUp);
+      window.addEventListener('mouseup', onUp);
     };
+    handle.addEventListener('mousedown', onMouseDown, { capture: true });
+    return () => handle.removeEventListener('mousedown', onMouseDown, { capture: true });
+  }, [id]);
 
+  // ── Bottom-edge resize (height) ──
+  const bottomHandleRef = useRef(null);
+  useEffect(() => {
+    const handle = bottomHandleRef.current;
+    if (!handle) return;
+    const onMouseDown = (e) => {
+      e.stopPropagation(); e.stopImmediatePropagation(); e.preventDefault();
+      const startY = e.clientY, startH = savedHeightRef.current;
+      const onMove = (me) => setDragHeight(Math.round(Math.max(FILE_MIN_EXP, startH + (me.clientY - startY))));
+      const onUp   = (ue) => {
+        const finalH = Math.round(Math.max(FILE_MIN_EXP, startH + (ue.clientY - startY)));
+        setNodesRef.current(nds => nds.map(n => n.id === id
+          ? { ...n, data: { ...n.data, manualHeight: finalH }, style: { ...n.style, height: finalH } }
+          : n));
+        setDragHeight(null);
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup', onUp);
+      };
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+    };
     handle.addEventListener('mousedown', onMouseDown, { capture: true });
     return () => handle.removeEventListener('mousedown', onMouseDown, { capture: true });
   }, [id]);
@@ -131,60 +154,57 @@ export default function FileNode({ id, data, selected }) {
     evt.stopPropagation();
     const next = !isCollapsed;
     setNodes(nodes => {
-      const siblings = nodes
-        .filter(n => n.parentId === id && n.type === 'function')
+      const siblings = nodes.filter(n => n.parentId === id && n.type === 'function')
         .sort((a, b) => a.position.y - b.position.y);
       return nodes.map(n => {
-        if (n.id === id)
-          return { ...n, data: { ...n.data, collapsed: next } };
+        if (n.id === id) return { ...n, data: { ...n.data, collapsed: next } };
         if (n.parentId === id && n.type === 'function') {
           const idx = siblings.findIndex(s => s.id === n.id);
-          return { ...n, position: next ? { x: n.position.x, y: 8 } : { x: fnPositions[idx]?.x ?? 16, y: fnPositions[idx]?.y ?? FN_START_Y + idx * FN_SLOT } };
+          const restored = fnPositions[idx];
+          return { ...n, position: next
+            ? { x: n.position.x, y: 8 }
+            : { x: restored?.x ?? 16, y: restored?.y ?? FN_START_Y + idx * fnGap } };
         }
         return n;
       });
     });
-  }, [id, isCollapsed, setNodes, fnPositions]);
+  }, [id, isCollapsed, setNodes, fnPositions, fnGap]);
 
   // ── Add function ──
   const addFunction = useCallback((evt) => {
     evt.stopPropagation();
     setNodes(nodes => {
-      const siblings  = nodes.filter(n => n.parentId === id && n.type === 'function');
-      const allFns    = [...siblings, { id: '__new__' }]; // simulate new fn for layout
-      const { positions, fileHeight: newHeight } = layoutFunctions(allFns, savedWidthRef.current);
-      const newPos    = positions[positions.length - 1];
-      const thisFile  = nodes.find(n => n.id === id);
-      const compId    = thisFile?.parentId;
-
-      const updated = nodes.map(node => {
-        if (node.id === id)
-          return { ...node, style: { ...node.style, height: newHeight } };
-        if (node.id === compId)
-          return { ...node, data: { ...node.data, _childUpdate: Date.now() } };
+      const siblings = nodes.filter(n => n.parentId === id && n.type === 'function');
+      const allFns   = [...siblings, { id: '__new__' }];
+      const { positions, fileHeight: newH } = layoutFunctions(allFns, savedWidthRef.current, fnGap, fnGapH);
+      const newPos   = positions[positions.length - 1];
+      const compId   = nodes.find(n => n.id === id)?.parentId;
+      const updated  = nodes.map(node => {
+        if (node.id === id)  return { ...node, style: { ...node.style, height: newH }, data: { ...node.data, manualHeight: null } };
+        if (node.id === compId) return { ...node, data: { ...node.data, _childUpdate: Date.now() } };
         return node;
       });
-
-      return [
-        ...updated,
-        {
-          id:        `fn_${Date.now()}`,
-          type:      'function',
-          parentId:  id,
-          position:  { x: newPos?.x ?? 16, y: newPos?.y ?? FN_START_Y + siblings.length * FN_SLOT },
-          draggable: true,
-          data:      { label: 'newFunction()', description: '' },
-        },
-      ];
+      return [...updated, {
+        id: `fn_${Date.now()}`, type: 'function', parentId: id,
+        position: { x: newPos?.x ?? 16, y: newPos?.y ?? FN_START_Y + siblings.length * fnGap },
+        draggable: true, data: { label: 'newFunction()', description: '' },
+      }];
     });
-  }, [id, setNodes]);
+  }, [id, setNodes, fnGap]);
+
+  // ── Spacing controls ──
+  const adjustGap = useCallback((delta) => {
+    const next = Math.max(FN_GAP_MIN, Math.min(FN_GAP_MAX, fnGap + delta));
+    setNodes(nds => nds.map(n => n.id === id ? { ...n, data: { ...n.data, fnGap: next, manualHeight: null } } : n));
+  }, [id, fnGap, setNodes]);
+
+  const adjustGapH = useCallback((delta) => {
+    const next = Math.max(FN_GAP_H_MIN, Math.min(FN_GAP_H_MAX, fnGapH + delta));
+    setNodes(nds => nds.map(n => n.id === id ? { ...n, data: { ...n.data, fnGapH: next } } : n));
+  }, [id, fnGapH, setNodes]);
 
   // ── Label edit ──
-  const handleSave   = () => {
-    const sanitized = sanitizeLabel(editValue);
-    if (sanitized) setNodes(nodes => nodes.map(n => n.id === id ? { ...n, data: { ...n.data, label: sanitized } } : n));
-    setIsEditing(false);
-  };
+  const handleSave    = () => { const s = sanitizeLabel(editValue); if (s) setNodes(nds => nds.map(n => n.id === id ? { ...n, data: { ...n.data, label: s } } : n)); setIsEditing(false); };
   const handleCancel  = () => { setEditValue(data.label); setIsEditing(false); };
   const handleKeyDown = (e) => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') handleCancel(); };
 
@@ -201,18 +221,30 @@ export default function FileNode({ id, data, selected }) {
       `}
       style={{ height: `${calculatedHeight}px`, width: `${currentWidth}px` }}
     >
+
       {/* ── Right-edge resize handle ── */}
-      <div
-        ref={resizeHandleRef}
+      <div ref={rightHandleRef}
         className="nodrag nopan absolute top-0 right-0 w-4 h-full z-50 cursor-ew-resize
-                   flex items-center justify-end group/handle"
-        title="Drag to resize"
-      >
-        <div className="w-0.5 h-full bg-blue-900/50 group-hover/handle:bg-blue-500/60 transition-colors" />
+                   flex items-center justify-end group/rhandle"
+        title="Drag to resize width">
+        <div className="w-0.5 h-full bg-blue-900/50 group-hover/rhandle:bg-blue-500/60 transition-colors" />
         <div className="absolute top-1/2 -translate-y-1/2 right-0.5 w-1 h-8 rounded-full
-                        bg-blue-700/60 group-hover/handle:bg-blue-400 group-hover/handle:h-12
+                        bg-blue-700/60 group-hover/rhandle:bg-blue-400 group-hover/rhandle:h-12
                         transition-all duration-150" />
       </div>
+
+      {/* ── Bottom-edge resize handle ── */}
+      {!isCollapsed && (
+        <div ref={bottomHandleRef}
+          className="nodrag nopan absolute bottom-0 left-0 w-full h-4 z-50 cursor-ns-resize
+                     flex items-end justify-center group/bhandle"
+          title="Drag to resize height">
+          <div className="h-0.5 w-full bg-blue-900/50 group-hover/bhandle:bg-blue-500/60 transition-colors" />
+          <div className="absolute bottom-0.5 left-1/2 -translate-x-1/2 h-1 w-8 rounded-full
+                          bg-blue-700/60 group-hover/bhandle:bg-blue-400 group-hover/bhandle:w-12
+                          transition-all duration-150" />
+        </div>
+      )}
 
       {/* ── Header ── */}
       <div className="flex items-center gap-2 px-3 py-2.5 pointer-events-auto relative z-10">
@@ -241,16 +273,57 @@ export default function FileNode({ id, data, selected }) {
             <span
               className="text-sm font-bold text-white truncate block cursor-pointer hover:text-blue-200"
               onDoubleClick={e => { e.stopPropagation(); setIsEditing(true); setEditValue(data.label); }}
-              title="Double-click to rename"
-            >
+              title="Double-click to rename">
               {data.label}
             </span>
           )}
         </div>
 
         <div className="flex items-center gap-1.5 flex-shrink-0">
-          {dragWidth && <span className="text-[10px] text-blue-400 font-mono">{currentWidth}px</span>}
+          {(dragWidth || dragHeight) && (
+            <span className="text-[10px] text-blue-400 font-mono">
+              {currentWidth}×{Math.round(calculatedHeight)}
+            </span>
+          )}
           {numCols > 1 && <span className="text-[10px] text-blue-600">{numCols} cols</span>}
+
+          {/* Spacing controls — visible when expanded, has functions, and multi-col */}
+          {!isCollapsed && fnCount > 0 && !isEditing && (
+            <div className="flex items-center gap-1">
+              {/* Vertical spacing */}
+              <div className="flex items-center gap-0.5 bg-blue-950/60 rounded-lg px-1 border border-blue-900/60"
+                title="Vertical spacing between functions">
+                <button onClick={() => adjustGap(-8)}
+                  className="p-0.5 text-blue-500 hover:text-blue-300 transition-colors"
+                  title="Less vertical space">
+                  <Minus size={10} />
+                </button>
+                <span className="text-[10px] font-mono text-blue-500 w-5 text-center select-none">{fnGap}</span>
+                <button onClick={() => adjustGap(8)}
+                  className="p-0.5 text-blue-500 hover:text-blue-300 transition-colors"
+                  title="More vertical space">
+                  <Plus size={10} />
+                </button>
+              </div>
+              {/* Horizontal spacing — only useful when multi-column */}
+              {numCols > 1 && (
+                <div className="flex items-center gap-0.5 bg-blue-950/60 rounded-lg px-1 border border-blue-900/60"
+                  title="Horizontal spacing between columns">
+                  <button onClick={() => adjustGapH(-8)}
+                    className="p-0.5 text-cyan-600 hover:text-cyan-300 transition-colors"
+                    title="Less horizontal space">
+                    <Minus size={10} />
+                  </button>
+                  <span className="text-[10px] font-mono text-cyan-600 w-5 text-center select-none">{fnGapH}</span>
+                  <button onClick={() => adjustGapH(8)}
+                    className="p-0.5 text-cyan-600 hover:text-cyan-300 transition-colors"
+                    title="More horizontal space">
+                    <Plus size={10} />
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
 
           <span className={`text-xs font-bold px-1.5 py-0.5 rounded-md
             ${docBadgeColor === 'emerald' ? 'text-emerald-400 bg-emerald-500/10' :
