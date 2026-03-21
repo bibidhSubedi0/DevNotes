@@ -181,33 +181,33 @@ const initialEdges = [
     id: 'e1',
     source: 'project1', target: 'comp1',
     type: 'smart',
-    data:  { label: 'uses', color: '#a855f7' },
-    style: { stroke: '#a855f7', strokeWidth: 1.5 },
-    markerEnd: { type: MarkerType.ArrowClosed, color: '#a855f7' },
+    data:  { label: 'flow', color: '#6366f1' },
+    style: { stroke: '#6366f1', strokeWidth: 1.5 },
+    markerEnd: { type: MarkerType.ArrowClosed, color: '#6366f1' },
   },
   {
     id: 'e2',
     source: 'project1', target: 'comp2',
     type: 'smart',
-    data:  { label: 'uses', color: '#a855f7' },
-    style: { stroke: '#a855f7', strokeWidth: 1.5 },
-    markerEnd: { type: MarkerType.ArrowClosed, color: '#a855f7' },
+    data:  { label: 'flow', color: '#6366f1' },
+    style: { stroke: '#6366f1', strokeWidth: 1.5 },
+    markerEnd: { type: MarkerType.ArrowClosed, color: '#6366f1' },
   },
   {
     id: 'e3',
     source: 'project1', target: 'comp3',
     type: 'smart',
-    data:  { label: 'uses', color: '#a855f7' },
-    style: { stroke: '#a855f7', strokeWidth: 1.5 },
-    markerEnd: { type: MarkerType.ArrowClosed, color: '#a855f7' },
+    data:  { label: 'flow', color: '#6366f1' },
+    style: { stroke: '#6366f1', strokeWidth: 1.5 },
+    markerEnd: { type: MarkerType.ArrowClosed, color: '#6366f1' },
   },
   {
     id: 'e4',
     source: 'comp1', target: 'comp2',
     type: 'smart',
-    data:  { label: 'imports', color: '#8b5cf6' },
-    style: { stroke: '#8b5cf6', strokeWidth: 1.5 },
-    markerEnd: { type: MarkerType.ArrowClosed, color: '#8b5cf6' },
+    data:  { label: 'depends', color: '#f97316' },
+    style: { stroke: '#f97316', strokeWidth: 1.5, strokeDasharray: '6 3' },
+    markerEnd: { type: MarkerType.ArrowClosed, color: '#f97316' },
   },
 ];
 
@@ -221,7 +221,7 @@ export default function App() {
     undo, redo, canUndo, canRedo,
   } = useHistory(initialNodes, initialEdges);
 
-  const [selectedEdgeType, setSelectedEdgeType] = useState(EDGE_TYPES.CALLS);
+  const [selectedEdgeType, setSelectedEdgeType] = useState(EDGE_TYPES.FLOW);
   const [selectedNodeId, setSelectedNodeId]     = useState(null);
   const [searchOpen, setSearchOpen]             = useState(false);
 

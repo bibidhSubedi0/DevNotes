@@ -8,57 +8,37 @@ export const NODE_TYPES = {
 
 // Edge/Connection types
 export const EDGE_TYPES = {
-  CALLS:      'calls',
-  IMPORTS:    'imports',
-  EXTENDS:    'extends',
-  IMPLEMENTS: 'implements',
-  USES:       'uses',
-  CONTAINS:   'contains',
-  DEPENDS_ON: 'depends_on',
-  EXPORTS_TO: 'exports_to',
+  FLOW:     'flow',
+  DEPENDS:  'depends',
+  ASYNC:    'async',
+  OPTIONAL: 'optional',
 };
 
-// Edge configurations with distinct colors
+// Edge configurations
 export const EDGE_CONFIGS = {
-  [EDGE_TYPES.CALLS]: { 
-    label: 'calls', 
-    color: '#6366f1',  // indigo
-    animated: true 
+  [EDGE_TYPES.FLOW]: {
+    label:    'flow',
+    color:    '#6366f1',   // indigo — default pipeline arrow
+    animated: false,
+    dash:     null,
   },
-  [EDGE_TYPES.IMPORTS]: { 
-    label: 'imports', 
-    color: '#8b5cf6',  // purple
-    animated: false 
+  [EDGE_TYPES.DEPENDS]: {
+    label:    'depends',
+    color:    '#f97316',   // orange — blocking dependency
+    animated: false,
+    dash:     '6 3',
   },
-  [EDGE_TYPES.EXTENDS]: { 
-    label: 'extends', 
-    color: '#ec4899',  // pink
-    animated: false 
+  [EDGE_TYPES.ASYNC]: {
+    label:    'async',
+    color:    '#22d3ee',   // cyan — fire and forget
+    animated: true,
+    dash:     null,
   },
-  [EDGE_TYPES.IMPLEMENTS]: { 
-    label: 'implements', 
-    color: '#f59e0b',  // amber
-    animated: false 
-  },
-  [EDGE_TYPES.USES]: { 
-    label: 'uses', 
-    color: '#14b8a6',  // teal
-    animated: false 
-  },
-  [EDGE_TYPES.CONTAINS]: { 
-    label: 'contains', 
-    color: '#22d3ee',  // cyan
-    animated: false 
-  },
-  [EDGE_TYPES.DEPENDS_ON]: { 
-    label: 'depends on', 
-    color: '#f97316',  // orange
-    animated: true 
-  },
-  [EDGE_TYPES.EXPORTS_TO]: { 
-    label: 'exports to', 
-    color: '#a855f7',  // violet
-    animated: true 
+  [EDGE_TYPES.OPTIONAL]: {
+    label:    'optional',
+    color:    '#71717a',   // zinc — faded, sometimes calls
+    animated: false,
+    dash:     '3 4',
   },
 };
 

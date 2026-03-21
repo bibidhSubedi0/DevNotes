@@ -16,7 +16,11 @@ export const useEdgeManager = (setEdges, selectedEdgeType) => {
       type: 'smart',
       animated: edgeConfig.animated, 
       data:  { label: edgeConfig.label, color: edgeConfig.color },
-      style: { stroke: edgeConfig.color, strokeWidth: 1.5 },
+      style: {
+        stroke: edgeConfig.color,
+        strokeWidth: 1.5,
+        ...(edgeConfig.dash ? { strokeDasharray: edgeConfig.dash } : {}),
+      },
       markerEnd: { type: MarkerType.ArrowClosed, color: edgeConfig.color },
     };
     

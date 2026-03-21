@@ -85,7 +85,7 @@ export const SmartEdge = ({
               pointerEvents: 'none',
               color,
             }}
-            className="px-1.5 py-0.5 rounded-md text-[10px] font-semibold
+            className="px-2 py-0.5 rounded-md text-xs font-semibold
                        bg-neutral-950/90 border border-neutral-800/60"
           >
             {data.label}
