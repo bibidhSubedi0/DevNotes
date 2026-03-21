@@ -1,7 +1,12 @@
 // ─── Shared layout constants ─────────────────────────────────────────────────
 // Edit here only — FileNode, ComponentNode, and App.jsx all import from this.
 
-export const FILE_W          = 360;   // file node width
+export const FILE_W          = 360;   // file node default width
+export const FILE_W_MIN      = 360;   // minimum resizable width
+export const FILE_W_MAX      = 1400;  // maximum resizable width
+export const FN_W            = 280;   // function node width
+export const FN_GAP_H        = 16;    // horizontal gap between fn columns
+export const FN_PAD_H        = 16;    // horizontal padding inside file (each side)
 export const FILE_GAP_H      = 16;    // horizontal gap between file columns
 export const FILE_GAP_V      = 12;    // vertical gap between files in same column
 export const FILE_COLLAPSED_H = 52;   // file height when collapsed
@@ -48,4 +53,29 @@ export const layoutFiles = (files, allNodes, compWidth) => {
 
   const compHeight = Math.max(200, Math.max(...colNextY) + COMP_PAD_V);
   return { positions, compHeight };
+};
+
+// ── Function multi-column layout inside a file ────────────────────────────
+
+// How many function columns fit at a given file width
+export const calcFnCols = (fileWidth) =>
+  Math.max(1, Math.floor((fileWidth - FN_PAD_H * 2 + FN_GAP_H) / (FN_W + FN_GAP_H)));
+
+// Given a list of function nodes and the file width, return:
+//   positions: [{ id, x, y }]  — where each fn should be
+//   fileHeight: number          — total file height needed
+export const layoutFunctions = (fnNodes, fileWidth) => {
+  const numCols  = calcFnCols(fileWidth);
+  const colNextY = Array.from({ length: numCols }, () => FN_START_Y);
+
+  const positions = fnNodes.map((fn) => {
+    const col = colNextY.indexOf(Math.min(...colNextY)); // shortest column
+    const x   = FN_PAD_H + col * (FN_W + FN_GAP_H);
+    const y   = colNextY[col];
+    colNextY[col] += FN_SLOT;
+    return { id: fn.id, x, y };
+  });
+
+  const fileHeight = Math.max(FILE_MIN_EXP, Math.max(...colNextY) + FILE_PAD_B);
+  return { positions, fileHeight };
 };
