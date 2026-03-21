@@ -3,7 +3,6 @@ import { MarkerType } from '@xyflow/react';
 
 import { Canvas }           from './components/canvas/Canvas';
 import { StatsPanel }       from './components/Panels/StatsPanel';
-import { EdgeTypeSelector } from './components/Panels/EdgeTypeSelector';
 import { ToolbarPanel }     from './components/Panels/ToolbarPanel';
 import { DetailPanel }      from './components/Panels/DetailPanel';
 import { BulkActionsBar }     from './components/Panels/BulkActionsBar';
@@ -346,8 +345,7 @@ export default function App() {
       {/* Offset content for header */}
       <div style={{ paddingTop: '48px', height: '100vh' }}>
         <StatsPanel nodes={nodes} edges={edges} />
-      <EdgeTypeSelector selectedEdgeType={selectedEdgeType} onEdgeTypeChange={setSelectedEdgeType} />
-      <ToolbarPanel onAddProject={addProject} onAddComponent={addComponent} />
+        <ToolbarPanel />
 
       <div style={{
         position: 'absolute', inset: 0,
@@ -368,6 +366,8 @@ export default function App() {
             onAddProject={addProject}
             onAddComponent={addComponent}
             onReady={handleCanvasReady}
+            selectedEdgeType={selectedEdgeType}
+            onEdgeTypeChange={setSelectedEdgeType}
           />
         </ComponentErrorBoundary>
       </div>
@@ -380,30 +380,10 @@ export default function App() {
         onClear={clearSelection}
       />
 
-
       <ExportImportPanel
         nodes={nodes} edges={edges}
         setNodes={setNodes} setEdges={setEdges}
       />
-
-      {/* Search trigger button — always visible */}
-      <button
-        onClick={() => setSearchOpen(true)}
-        className="fixed top-16 left-1/2 -translate-x-1/2 z-40
-                   flex items-center gap-2 px-4 py-2
-                   bg-neutral-900/90 backdrop-blur-xl
-                   border border-neutral-700/60 rounded-xl
-                   text-neutral-500 hover:text-neutral-300
-                   text-sm transition-all hover:border-neutral-600
-                   shadow-lg shadow-black/30"
-        title="Search (Ctrl+K)"
-      >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
-        </svg>
-        <span className="hidden sm:inline">Search nodes…</span>
-        <kbd className="hidden sm:inline ml-1 px-1.5 py-0.5 bg-neutral-800 rounded text-[10px] text-neutral-600">⌘K</kbd>
-      </button>
 
         {detailOpen && (
           <ComponentErrorBoundary name="DetailPanel">
@@ -411,8 +391,6 @@ export default function App() {
               selectedNodeId={selectedNodeId}
               nodes={nodes} setNodes={setNodes}
               onClose={(nextNodeId) => {
-                // If nextNodeId is passed, it's navigation (prev/next)
-                // Otherwise it's a close action
                 setSelectedNodeId(nextNodeId || null);
               }}
             />
