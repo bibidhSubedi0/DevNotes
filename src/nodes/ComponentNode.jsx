@@ -20,7 +20,8 @@ export default function ComponentNode({ id, data, selected }) {
   const [isEditing, setIsEditing]             = useState(false);
   const [editValue, setEditValue]             = useState(data.label);
   const [validationError, setValidationError] = useState('');
-  const [dragWidth, setDragWidth]             = useState(null);
+  const [dragWidth, setDragWidth]   = useState(null);
+  const [dragHeight, setDragHeight] = useState(null);
   const lastSigRef = useRef('');
 
   // Width lives in data.width — always readable as a prop, never undefined
@@ -49,6 +50,9 @@ export default function ComponentNode({ id, data, selected }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [sig, currentWidth]
   );
+
+  // Height: dragging bottom → drag value; manual saved → data.manualHeight; else auto
+  const displayHeight = dragHeight ?? data.manualHeight ?? compHeight;
 
   // Sync file positions + component height when layout changes
   useEffect(() => {
@@ -79,9 +83,11 @@ export default function ComponentNode({ id, data, selected }) {
   // ── Resize handle — native capture listener so ReactFlow can't intercept ──
   const resizeHandleRef = useRef(null);
   const savedWidthRef   = useRef(savedWidth);
+  const savedHeightRef  = useRef(displayHeight);
   const setNodesRef     = useRef(setNodes);
-  savedWidthRef.current = savedWidth;
-  setNodesRef.current   = setNodes;
+  savedWidthRef.current  = savedWidth;
+  savedHeightRef.current = displayHeight;
+  setNodesRef.current    = setNodes;
 
   useEffect(() => {
     const handle = resizeHandleRef.current;
@@ -121,6 +127,31 @@ export default function ComponentNode({ id, data, selected }) {
       window.addEventListener('mouseup',   onUp);
     };
 
+    handle.addEventListener('mousedown', onMouseDown, { capture: true });
+    return () => handle.removeEventListener('mousedown', onMouseDown, { capture: true });
+  }, [id]);
+
+  // ── Bottom-edge resize (height) ──
+  const bottomHandleRef = useRef(null);
+  useEffect(() => {
+    const handle = bottomHandleRef.current;
+    if (!handle) return;
+    const onMouseDown = (e) => {
+      e.stopPropagation(); e.stopImmediatePropagation(); e.preventDefault();
+      const startY = e.clientY, startH = savedHeightRef.current;
+      const onMove = (me) => setDragHeight(Math.round(Math.max(120, startH + (me.clientY - startY))));
+      const onUp   = (ue) => {
+        const finalH = Math.round(Math.max(120, startH + (ue.clientY - startY)));
+        setNodesRef.current(nds => nds.map(n => n.id === id
+          ? { ...n, data: { ...n.data, manualHeight: finalH }, style: { ...n.style, height: finalH } }
+          : n));
+        setDragHeight(null);
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup', onUp);
+      };
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+    };
     handle.addEventListener('mousedown', onMouseDown, { capture: true });
     return () => handle.removeEventListener('mousedown', onMouseDown, { capture: true });
   }, [id]);
@@ -170,7 +201,7 @@ export default function ComponentNode({ id, data, selected }) {
           ? 'border-cyan-400 shadow-cyan-500/30 ring-4 ring-cyan-500/15'
           : 'border-cyan-800 hover:border-cyan-700'}
       `}
-      style={{ width: `${currentWidth}px`, height: `${compHeight}px` }}
+      style={{ width: `${currentWidth}px`, height: `${displayHeight}px` }}
     >
 
       {/* ── Right-edge resize handle ── */}
@@ -178,11 +209,24 @@ export default function ComponentNode({ id, data, selected }) {
         ref={resizeHandleRef}
         className="nodrag nopan absolute top-0 right-0 w-4 h-full z-50 cursor-ew-resize
                    flex items-center justify-end group/handle"
-        title="Drag to resize"
+        title="Drag to resize width"
       >
         <div className="w-0.5 h-full bg-cyan-900/50 group-hover/handle:bg-cyan-600/60 transition-colors" />
         <div className="absolute top-1/2 -translate-y-1/2 right-0.5 w-1 h-8 rounded-full
                         bg-cyan-700/60 group-hover/handle:bg-cyan-400 group-hover/handle:h-12
+                        transition-all duration-150" />
+      </div>
+
+      {/* ── Bottom-edge resize handle ── */}
+      <div
+        ref={bottomHandleRef}
+        className="nodrag nopan absolute bottom-0 left-0 w-full h-4 z-50 cursor-ns-resize
+                   flex items-end justify-center group/bhandle"
+        title="Drag to resize height"
+      >
+        <div className="h-0.5 w-full bg-cyan-900/50 group-hover/bhandle:bg-cyan-600/60 transition-colors" />
+        <div className="absolute bottom-0.5 left-1/2 -translate-x-1/2 h-1 w-8 rounded-full
+                        bg-cyan-700/60 group-hover/bhandle:bg-cyan-400 group-hover/bhandle:w-12
                         transition-all duration-150" />
       </div>
 
@@ -235,8 +279,8 @@ export default function ComponentNode({ id, data, selected }) {
         </div>
 
         <div className="flex items-center gap-2 flex-shrink-0">
-          {dragWidth ? (
-            <span className="text-[10px] text-cyan-500 font-mono">{currentWidth}px</span>
+          {(dragWidth || dragHeight) ? (
+            <span className="text-[10px] text-cyan-500 font-mono">{currentWidth}×{Math.round(displayHeight)}</span>
           ) : selected ? (
             <span className="text-[10px] text-neutral-700 select-none">drag right edge</span>
           ) : null}

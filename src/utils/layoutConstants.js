@@ -55,24 +55,26 @@ export const layoutFiles = (files, allNodes, compWidth) => {
   return { positions, compHeight };
 };
 
+export const COMP_MIN_H    = 120;  // minimum component height when bottom-resized
+
 // ── Function multi-column layout inside a file ────────────────────────────
 
-// How many function columns fit at a given file width
-export const calcFnCols = (fileWidth) =>
-  Math.max(1, Math.floor((fileWidth - FN_PAD_H * 2 + FN_GAP_H) / (FN_W + FN_GAP_H)));
+// How many function columns fit at a given file width and horizontal gap
+export const calcFnCols = (fileWidth, gapH = FN_GAP_H) =>
+  Math.max(1, Math.floor((fileWidth - FN_PAD_H * 2 + gapH) / (FN_W + gapH)));
 
-// Given a list of function nodes and the file width, return:
+// Given a list of function nodes, file width, and optional gap overrides, return:
 //   positions: [{ id, x, y }]  — where each fn should be
 //   fileHeight: number          — total file height needed
-export const layoutFunctions = (fnNodes, fileWidth) => {
-  const numCols  = calcFnCols(fileWidth);
+export const layoutFunctions = (fnNodes, fileWidth, fnGap = FN_SLOT, fnGapH = FN_GAP_H) => {
+  const numCols  = calcFnCols(fileWidth, fnGapH);
   const colNextY = Array.from({ length: numCols }, () => FN_START_Y);
 
   const positions = fnNodes.map((fn) => {
-    const col = colNextY.indexOf(Math.min(...colNextY)); // shortest column
-    const x   = FN_PAD_H + col * (FN_W + FN_GAP_H);
+    const col = colNextY.indexOf(Math.min(...colNextY));
+    const x   = FN_PAD_H + col * (FN_W + fnGapH);
     const y   = colNextY[col];
-    colNextY[col] += FN_SLOT;
+    colNextY[col] += fnGap;
     return { id: fn.id, x, y };
   });
 
