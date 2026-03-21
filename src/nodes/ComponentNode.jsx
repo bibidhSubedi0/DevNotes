@@ -213,12 +213,12 @@ export default function ComponentNode({ id, data, selected }) {
               </div>
             ) : (
               <div className="cursor-pointer" onDoubleClick={e => { e.stopPropagation(); setIsEditing(true); }}>
-                <span className="text-sm font-bold text-white tracking-tight">{data.label}</span>
+                <span className="text-base font-bold text-white tracking-tight">{data.label}</span>
                 <div className="flex items-center gap-2 mt-0.5">
-                  <span className="text-[10px] uppercase text-cyan-500 font-semibold tracking-wider">Component</span>
-                  <span className="text-[10px] text-neutral-600">{childFiles.length} files · {totalFns} fn</span>
+                  <span className="text-xs uppercase text-cyan-500 font-semibold tracking-wider">Component</span>
+                  <span className="text-xs text-neutral-500">{childFiles.length} files · {totalFns} fn</span>
                   {allFunctions.length > 0 && (
-                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded
+                    <span className={`text-xs font-bold px-1.5 py-0.5 rounded
                       ${docColor === 'emerald' ? 'text-emerald-400 bg-emerald-500/10' :
                         docColor === 'amber'   ? 'text-amber-400 bg-amber-500/10' :
                                                  'text-red-400 bg-red-500/10'}`}
@@ -227,7 +227,7 @@ export default function ComponentNode({ id, data, selected }) {
                       {docPercent}% docs
                     </span>
                   )}
-                  {numCols > 1 && <span className="text-[10px] text-cyan-700">{numCols} cols</span>}
+                  {numCols > 1 && <span className="text-xs text-cyan-700">{numCols} cols</span>}
                 </div>
               </div>
             )}

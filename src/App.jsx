@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { MarkerType } from '@xyflow/react';
 
 import { Canvas }           from './components/canvas/Canvas';
@@ -226,7 +226,11 @@ export default function App() {
   const [selectedNodeId, setSelectedNodeId]     = useState(null);
   const [searchOpen, setSearchOpen]             = useState(false);
 
-  const { addProject, addComponent } = useNodeManager(nodes, setNodes);
+  // Receives screenToFlowPosition from inside the ReactFlow provider (via Canvas onReady)
+  const screenToFlowPositionRef = useRef(null);
+  const handleCanvasReady = useCallback((fn) => { screenToFlowPositionRef.current = fn; }, []);
+
+  const { addProject, addComponent } = useNodeManager(nodes, setNodes, screenToFlowPositionRef);
   const { handleConnect }            = useEdgeManager(setEdges, selectedEdgeType);
 
   const selectedNodes  = nodes.filter(n => n.selected);
@@ -363,6 +367,7 @@ export default function App() {
             onSearchClose={() => setSearchOpen(false)}
             onAddProject={addProject}
             onAddComponent={addComponent}
+            onReady={handleCanvasReady}
           />
         </ComponentErrorBoundary>
       </div>

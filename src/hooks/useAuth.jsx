@@ -1,6 +1,16 @@
 import { useState, useEffect, createContext, useContext } from 'react';
 import { supabase } from '../lib/supabaseClient';
 
+// ── Local dev bypass ──────────────────────────────────────────────────────────
+// Set VITE_DEV_BYPASS_AUTH=true in your .env.local to skip login locally.
+const DEV_BYPASS = import.meta.env.VITE_DEV_BYPASS_AUTH === 'true';
+const DEV_USER   = {
+  id: 'dev-user-local',
+  email: 'dev@local.dev',
+  user_metadata: { full_name: 'Dev User', avatar_url: null },
+};
+// ─────────────────────────────────────────────────────────────────────────────
+
 const AuthContext = createContext({});
 
 export const useAuth = () => {
@@ -12,10 +22,11 @@ export const useAuth = () => {
 };
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState(DEV_BYPASS ? DEV_USER : null);
+  const [loading, setLoading] = useState(!DEV_BYPASS);
 
   useEffect(() => {
+    if (DEV_BYPASS) return; // skip Supabase entirely in dev bypass mode
     // Check active session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
@@ -32,16 +43,16 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const signInWithGoogle = async () => {
+    if (DEV_BYPASS) { setUser(DEV_USER); return; }
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: {
-        redirectTo: window.location.origin,
-      },
+      options: { redirectTo: window.location.origin },
     });
     if (error) throw error;
   };
 
   const signOut = async () => {
+    if (DEV_BYPASS) { setUser(null); return; }
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
   };

@@ -64,7 +64,7 @@ export default function FunctionNode({ id, data, selected }) {
         ) : (
           <>
             <span
-              className="flex-1 min-w-0 text-sm font-mono text-neutral-300 truncate
+              className="flex-1 min-w-0 text-base font-mono text-neutral-200 truncate
                          cursor-pointer hover:text-emerald-300 transition-colors"
               onDoubleClick={e => { e.stopPropagation(); setIsEditingLabel(true); setLabelValue(data.label); }}
               title="Double-click to rename · click to open details"

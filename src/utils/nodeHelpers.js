@@ -1,4 +1,5 @@
 import { NODE_TYPES, NODE_SIZES, FILE_TYPES } from './constants';
+import { FN_SLOT, FN_START_Y, COMP_HEADER_H, FILE_GAP_V, calcFileH } from './layoutConstants';
 
 /**
  * Generate unique node ID
@@ -26,15 +27,17 @@ export const createProjectNode = (position, existingNodes) => {
  */
 export const createComponentNode = (position, existingNodes) => {
   const componentCount = existingNodes.filter(n => n.type === NODE_TYPES.COMPONENT).length;
+  // Initial height: header + gap + one empty file + bottom pad
+  const initHeight = COMP_HEADER_H + FILE_GAP_V + calcFileH(0, false) + FILE_GAP_V + 20;
   
   return {
     id: generateNodeId(NODE_TYPES.COMPONENT),
     type: NODE_TYPES.COMPONENT,
     position,
-    data: { label: `Component ${componentCount + 1}` },
+    data: { label: `Component ${componentCount + 1}`, width: NODE_SIZES.COMPONENT.width },
     style: { 
-      width: NODE_SIZES.COMPONENT.width, 
-      height: NODE_SIZES.COMPONENT.minHeight 
+      width:  NODE_SIZES.COMPONENT.width, 
+      height: initHeight,
     },
   };
 };
@@ -82,11 +85,10 @@ export const calculateFilePosition = (childFiles) => {
 
 /**
  * Calculate position for new Function inside File
+ * Uses FN_START_Y and FN_SLOT from layoutConstants to stay in sync
  */
 export const calculateFunctionPosition = (childFunctions) => {
-  const baseY   = 62;   // FN_START_Y
-  const spacing = 52;   // FN_SLOT
-  return { x: 16, y: baseY + (childFunctions.length * spacing) };
+  return { x: 16, y: FN_START_Y + (childFunctions.length * FN_SLOT) };
 };
 
 /**
