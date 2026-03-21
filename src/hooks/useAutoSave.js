@@ -14,6 +14,8 @@ export const useAutoSave = (nodes, edges, setNodes, setEdges, user) => {
   // Load diagram on mount
   useEffect(() => {
     if (!user || loaded) return;
+    // Dev bypass: skip Supabase, just mark as loaded with initial data
+    if (user.id === 'dev-user-local') { setLoaded(true); return; }
 
     const loadDiagram = async () => {
       const { data, error } = await supabase
@@ -69,6 +71,7 @@ export const useAutoSave = (nodes, edges, setNodes, setEdges, user) => {
   // Auto-save on changes (only after initial load)
   const saveDiagram = useCallback(async () => {
     if (!user || !currentDiagramId || !loaded) return;
+    if (user.id === 'dev-user-local') return; // dev bypass — no Supabase
 
     const payload = { nodes, edges };
     const payloadStr = JSON.stringify(payload);

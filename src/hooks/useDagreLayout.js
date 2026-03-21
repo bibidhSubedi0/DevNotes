@@ -20,7 +20,6 @@ export const useDagreLayout = () => {
     const children = nodes.filter(n =>  n.parentId);
 
     topLevel.forEach(n => {
-      // measured is populated after first render — fall back to style, then generous defaults
       const w = n.measured?.width  ?? n.style?.width  ?? 400;
       const h = n.measured?.height ?? n.style?.height ?? 300;
       g.setNode(n.id, { width: w, height: h });
@@ -43,5 +42,51 @@ export const useDagreLayout = () => {
     setTimeout(() => fitView({ duration: 600, padding: 0.12 }), 80);
   }, [getNodes, getEdges, setNodes, fitView]);
 
-  return { tidyLayout };
+  /** Snap all top-level nodes into a horizontal row, evenly spaced */
+  const alignRow = useCallback(() => {
+    const nodes    = getNodes();
+    const children = nodes.filter(n => n.parentId);
+    const topLevel = nodes.filter(n => !n.parentId);
+
+    // Sort by current x so order is preserved
+    const sorted  = [...topLevel].sort((a, b) => a.position.x - b.position.x);
+    const GAP     = 80;
+    const baseY   = sorted.reduce((sum, n) => sum + n.position.y, 0) / sorted.length; // avg y
+
+    let cursor = sorted[0]?.position.x ?? 0;
+    const laid = sorted.map(n => {
+      const w   = n.measured?.width ?? n.style?.width ?? 400;
+      const pos = { x: cursor, y: baseY };
+      cursor   += w + GAP;
+      return { ...n, position: pos };
+    });
+
+    setNodes([...laid, ...children]);
+    setTimeout(() => fitView({ duration: 500, padding: 0.1 }), 60);
+  }, [getNodes, setNodes, fitView]);
+
+  /** Snap all top-level nodes into a vertical column, evenly spaced */
+  const alignColumn = useCallback(() => {
+    const nodes    = getNodes();
+    const children = nodes.filter(n => n.parentId);
+    const topLevel = nodes.filter(n => !n.parentId);
+
+    // Sort by current y so order is preserved
+    const sorted  = [...topLevel].sort((a, b) => a.position.y - b.position.y);
+    const GAP     = 60;
+    const baseX   = sorted.reduce((sum, n) => sum + n.position.x, 0) / sorted.length;
+
+    let cursor = sorted[0]?.position.y ?? 0;
+    const laid = sorted.map(n => {
+      const h   = n.measured?.height ?? n.style?.height ?? 300;
+      const pos = { x: baseX, y: cursor };
+      cursor   += h + GAP;
+      return { ...n, position: pos };
+    });
+
+    setNodes([...laid, ...children]);
+    setTimeout(() => fitView({ duration: 500, padding: 0.1 }), 60);
+  }, [getNodes, setNodes, fitView]);
+
+  return { tidyLayout, alignRow, alignColumn };
 };

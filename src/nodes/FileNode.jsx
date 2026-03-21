@@ -45,7 +45,7 @@ const coverage = fnCount === 0 ? 0 : documented / fnCount;
     docBadgeColor = "red";
   }
 
-  // Sync file height + notify parent on change
+  // Sync file height + notify parent component when fn count or collapse changes
   useEffect(() => {
     setNodes(nodes => {
       const thisNode = nodes.find(n => n.id === id);
@@ -55,16 +55,13 @@ const coverage = fnCount === 0 ? 0 : documented / fnCount;
           return { ...node, style: { ...node.style, height: calculatedHeight, width: FILE_W } };
         if (node.id === parentId)
           return { ...node, data: { ...node.data, _childUpdate: Date.now() } };
-        if (node.parentId === id && node.type === 'function')
-        return { ...node, extent: 'parent' };
+        // ❌ Don't touch function extents here — causes clamping to stale bounds
         return node;
       });
     });
   }, [calculatedHeight, id, setNodes, fnCount, isCollapsed]);
 
   // ── Toggle collapse ──
-  // Collapsed: functions move to y=8 (still exist, edges draw to file header)
-  // Expanded:  functions restore to their proper y positions
   const toggleCollapse = useCallback((evt) => {
     evt.stopPropagation();
     const next = !isCollapsed;
@@ -82,8 +79,8 @@ const coverage = fnCount === 0 ? 0 : documented / fnCount;
           return {
             ...n,
             position: next
-              ? { x: n.position.x, y: 8 }        // cluster at header when collapsed
-              : { x: n.position.x, y: fnY(idx) }, // restore real positions when expanded
+              ? { x: n.position.x, y: 8 }
+              : { x: n.position.x, y: fnY(idx) },
           };
         }
         return n;
@@ -95,23 +92,35 @@ const coverage = fnCount === 0 ? 0 : documented / fnCount;
   const addFunction = useCallback((evt) => {
     evt.stopPropagation();
     setNodes(nodes => {
-      const siblings  = nodes.filter(n => n.parentId === id && n.type === 'function');
-      const newCount  = siblings.length + 1;
-      const newHeight = calcFileH(newCount, false);
-      const updated   = nodes.map(node =>
-        node.id === id ? { ...node, style: { ...node.style, height: newHeight } } : node
-      );
+      const siblings   = nodes.filter(n => n.parentId === id && n.type === 'function');
+      const newCount   = siblings.length + 1;
+      const newHeight  = calcFileH(newCount, false);
+
+      // Find parent component so we can nudge it to recompute height too
+      const thisFile   = nodes.find(n => n.id === id);
+      const compId     = thisFile?.parentId;
+
+      const updated = nodes.map(node => {
+        // Grow the file first — new function's extent will see the new height
+        if (node.id === id)
+          return { ...node, style: { ...node.style, height: newHeight } };
+        // Poke the component so its sig effect re-runs
+        if (node.id === compId)
+          return { ...node, data: { ...node.data, _childUpdate: Date.now() } };
+        return node;
+      });
+
       return [
         ...updated,
         {
-          id:       `fn_${Date.now()}`,
-          type:     'function',
-          parentId: id,
-          position: { x: 16, y: fnY(siblings.length) },
-          // extent:   [[0, 50], [FILE_W, newHeight]],
-          extent: 'parent',
+          id:        `fn_${Date.now()}`,
+          type:      'function',
+          parentId:  id,
+          // No extent — functions are visually contained but must not be hard-clamped
+          // to stale parent bounds. Component/file resizing handles visual containment.
+          position:  { x: 16, y: fnY(siblings.length) },
           draggable: true,
-          data:     { label: 'newFunction()', description: '' },
+          data:      { label: 'newFunction()', description: '' },
         },
       ];
     });
@@ -181,7 +190,7 @@ const coverage = fnCount === 0 ? 0 : documented / fnCount;
             </div>
           ) : (
             <span
-              className="text-xs font-bold text-white truncate block cursor-pointer hover:text-blue-200"
+              className="text-sm font-bold text-white truncate block cursor-pointer hover:text-blue-200"
               onDoubleClick={e => { e.stopPropagation(); setIsEditing(true); setEditValue(data.label); }}
               title="Double-click to rename"
             >
@@ -193,7 +202,7 @@ const coverage = fnCount === 0 ? 0 : documented / fnCount;
         {/* Right badges */}
         <div className="flex items-center gap-1.5 flex-shrink-0">
           {/* Documentation badge */}
-          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md
+          <span className={`text-xs font-bold px-1.5 py-0.5 rounded-md
             ${docBadgeColor === 'emerald' ? 'text-emerald-400 bg-emerald-500/10' :
               docBadgeColor === 'amber'   ? 'text-amber-400 bg-amber-500/10' :
                                             'text-red-400 bg-red-500/10'}`}
@@ -202,7 +211,7 @@ const coverage = fnCount === 0 ? 0 : documented / fnCount;
             {documented}/{fnCount}
           </span>
           
-          <span className="text-[10px] font-bold text-blue-500/80 bg-blue-500/10 px-1.5 py-0.5 rounded-md">
+          <span className="text-xs font-bold text-blue-500/80 bg-blue-500/10 px-1.5 py-0.5 rounded-md">
             {fnCount} fn
           </span>
 

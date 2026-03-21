@@ -9,25 +9,34 @@ import {
   calculateFunctionPosition,
   getChildNodes,
 } from '../utils/nodeHelpers';
-import { 
-  getSmartProjectPosition, 
-  getSmartComponentPosition 
-} from '../utils/positioning';
 
-export const useNodeManager = (nodes, setNodes) => {
-  // ✅ No more useReactFlow() – no provider needed at this level
+export const useNodeManager = (nodes, setNodes, screenToFlowPositionRef) => {
+
+  /** Get canvas coords at viewport center, with fallback if not yet available */
+  const getCenter = useCallback(() => {
+    const screenToFlowPosition = screenToFlowPositionRef?.current;
+    if (screenToFlowPosition) {
+      return screenToFlowPosition({
+        x: window.innerWidth  / 2,
+        y: window.innerHeight / 2,
+      });
+    }
+    return { x: 400, y: 300 };
+  }, [screenToFlowPositionRef]);
 
   const addProject = useCallback(() => {
-    const position = getSmartProjectPosition(nodes);
+    const center = getCenter();
+    const position = { x: center.x - 96, y: center.y - 96 };
     const newNode = createProjectNode(position, nodes);
     setNodes((nds) => [...nds, newNode]);
-  }, [nodes, setNodes]);
+  }, [nodes, setNodes, getCenter]);
 
   const addComponent = useCallback(() => {
-    const position = getSmartComponentPosition(nodes);
+    const center = getCenter();
+    const position = { x: center.x - 180, y: center.y - 100 };
     const newNode = createComponentNode(position, nodes);
     setNodes((nds) => [...nds, newNode]);
-  }, [nodes, setNodes]);
+  }, [nodes, setNodes, getCenter]);
 
   // Use functional updater to get fresh nodes – avoids stale closure
   const addFile = useCallback((componentId) => {

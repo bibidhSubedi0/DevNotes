@@ -1,9 +1,8 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { MarkerType } from '@xyflow/react';
 
 import { Canvas }           from './components/canvas/Canvas';
 import { StatsPanel }       from './components/Panels/StatsPanel';
-import { EdgeTypeSelector } from './components/Panels/EdgeTypeSelector';
 import { ToolbarPanel }     from './components/Panels/ToolbarPanel';
 import { DetailPanel }      from './components/Panels/DetailPanel';
 import { BulkActionsBar }     from './components/Panels/BulkActionsBar';
@@ -182,33 +181,33 @@ const initialEdges = [
     id: 'e1',
     source: 'project1', target: 'comp1',
     type: 'smart',
-    data:  { label: 'uses', color: '#a855f7' },
-    style: { stroke: '#a855f7', strokeWidth: 1.5 },
-    markerEnd: { type: MarkerType.ArrowClosed, color: '#a855f7' },
+    data:  { label: 'flow', color: '#6366f1' },
+    style: { stroke: '#6366f1', strokeWidth: 1.5 },
+    markerEnd: { type: MarkerType.ArrowClosed, color: '#6366f1' },
   },
   {
     id: 'e2',
     source: 'project1', target: 'comp2',
     type: 'smart',
-    data:  { label: 'uses', color: '#a855f7' },
-    style: { stroke: '#a855f7', strokeWidth: 1.5 },
-    markerEnd: { type: MarkerType.ArrowClosed, color: '#a855f7' },
+    data:  { label: 'flow', color: '#6366f1' },
+    style: { stroke: '#6366f1', strokeWidth: 1.5 },
+    markerEnd: { type: MarkerType.ArrowClosed, color: '#6366f1' },
   },
   {
     id: 'e3',
     source: 'project1', target: 'comp3',
     type: 'smart',
-    data:  { label: 'uses', color: '#a855f7' },
-    style: { stroke: '#a855f7', strokeWidth: 1.5 },
-    markerEnd: { type: MarkerType.ArrowClosed, color: '#a855f7' },
+    data:  { label: 'flow', color: '#6366f1' },
+    style: { stroke: '#6366f1', strokeWidth: 1.5 },
+    markerEnd: { type: MarkerType.ArrowClosed, color: '#6366f1' },
   },
   {
     id: 'e4',
     source: 'comp1', target: 'comp2',
     type: 'smart',
-    data:  { label: 'imports', color: '#8b5cf6' },
-    style: { stroke: '#8b5cf6', strokeWidth: 1.5 },
-    markerEnd: { type: MarkerType.ArrowClosed, color: '#8b5cf6' },
+    data:  { label: 'depends', color: '#f97316' },
+    style: { stroke: '#f97316', strokeWidth: 1.5, strokeDasharray: '6 3' },
+    markerEnd: { type: MarkerType.ArrowClosed, color: '#f97316' },
   },
 ];
 
@@ -222,11 +221,15 @@ export default function App() {
     undo, redo, canUndo, canRedo,
   } = useHistory(initialNodes, initialEdges);
 
-  const [selectedEdgeType, setSelectedEdgeType] = useState(EDGE_TYPES.CALLS);
+  const [selectedEdgeType, setSelectedEdgeType] = useState(EDGE_TYPES.FLOW);
   const [selectedNodeId, setSelectedNodeId]     = useState(null);
   const [searchOpen, setSearchOpen]             = useState(false);
 
-  const { addProject, addComponent } = useNodeManager(nodes, setNodes);
+  // Receives screenToFlowPosition from inside the ReactFlow provider (via Canvas onReady)
+  const screenToFlowPositionRef = useRef(null);
+  const handleCanvasReady = useCallback((fn) => { screenToFlowPositionRef.current = fn; }, []);
+
+  const { addProject, addComponent } = useNodeManager(nodes, setNodes, screenToFlowPositionRef);
   const { handleConnect }            = useEdgeManager(setEdges, selectedEdgeType);
 
   const selectedNodes  = nodes.filter(n => n.selected);
@@ -342,8 +345,7 @@ export default function App() {
       {/* Offset content for header */}
       <div style={{ paddingTop: '48px', height: '100vh' }}>
         <StatsPanel nodes={nodes} edges={edges} />
-      <EdgeTypeSelector selectedEdgeType={selectedEdgeType} onEdgeTypeChange={setSelectedEdgeType} />
-      <ToolbarPanel onAddProject={addProject} onAddComponent={addComponent} />
+        <ToolbarPanel />
 
       <div style={{
         position: 'absolute', inset: 0,
@@ -363,6 +365,9 @@ export default function App() {
             onSearchClose={() => setSearchOpen(false)}
             onAddProject={addProject}
             onAddComponent={addComponent}
+            onReady={handleCanvasReady}
+            selectedEdgeType={selectedEdgeType}
+            onEdgeTypeChange={setSelectedEdgeType}
           />
         </ComponentErrorBoundary>
       </div>
@@ -375,30 +380,10 @@ export default function App() {
         onClear={clearSelection}
       />
 
-
       <ExportImportPanel
         nodes={nodes} edges={edges}
         setNodes={setNodes} setEdges={setEdges}
       />
-
-      {/* Search trigger button — always visible */}
-      <button
-        onClick={() => setSearchOpen(true)}
-        className="fixed top-16 left-1/2 -translate-x-1/2 z-40
-                   flex items-center gap-2 px-4 py-2
-                   bg-neutral-900/90 backdrop-blur-xl
-                   border border-neutral-700/60 rounded-xl
-                   text-neutral-500 hover:text-neutral-300
-                   text-sm transition-all hover:border-neutral-600
-                   shadow-lg shadow-black/30"
-        title="Search (Ctrl+K)"
-      >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
-        </svg>
-        <span className="hidden sm:inline">Search nodes…</span>
-        <kbd className="hidden sm:inline ml-1 px-1.5 py-0.5 bg-neutral-800 rounded text-[10px] text-neutral-600">⌘K</kbd>
-      </button>
 
         {detailOpen && (
           <ComponentErrorBoundary name="DetailPanel">
@@ -406,8 +391,6 @@ export default function App() {
               selectedNodeId={selectedNodeId}
               nodes={nodes} setNodes={setNodes}
               onClose={(nextNodeId) => {
-                // If nextNodeId is passed, it's navigation (prev/next)
-                // Otherwise it's a close action
                 setSelectedNodeId(nextNodeId || null);
               }}
             />

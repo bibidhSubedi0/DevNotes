@@ -1,21 +1,27 @@
-import React from 'react';
-import { ReactFlow, Background, MiniMap } from '@xyflow/react';
+import React, { useEffect } from 'react';
+import { ReactFlow, Background, MiniMap, useReactFlow } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { REACT_FLOW_CONFIG, BACKGROUND_CONFIG, MINIMAP_CONFIG, NODE_COLORS } from '../../utils/constants';
-import { ZoomControls }    from '../Panels/ZoomControls';
-import { SearchPanel }     from '../Panels/SearchPanel';
-import { SmartEdge }       from '../edges/SmartEdge';
-import { useDagreLayout }  from '../../hooks/useDagreLayout';
+import { ZoomControls } from '../Panels/ZoomControls';
+import { SearchPanel }  from '../Panels/SearchPanel';
+import { SmartEdge }    from '../edges/SmartEdge';
+import { useDagreLayout } from '../../hooks/useDagreLayout';
 
 const edgeTypes = { smart: SmartEdge };
 
-// Inner component — lives inside ReactFlow provider so hooks work
 const CanvasInner = ({
   canUndo, canRedo, onUndo, onRedo,
   onAddProject, onAddComponent,
   nodes, searchOpen, onSearchClose,
+  onReady,
+  selectedEdgeType, onEdgeTypeChange,
 }) => {
-  const { tidyLayout } = useDagreLayout();
+  const { tidyLayout, alignRow, alignColumn } = useDagreLayout();
+  const { screenToFlowPosition } = useReactFlow();
+
+  useEffect(() => {
+    onReady?.(screenToFlowPosition);
+  }, [screenToFlowPosition, onReady]);
 
   return (
     <>
@@ -32,6 +38,10 @@ const CanvasInner = ({
         onAddProject={onAddProject}
         onAddComponent={onAddComponent}
         onTidyLayout={tidyLayout}
+        onAlignRow={alignRow}
+        onAlignColumn={alignColumn}
+        selectedEdgeType={selectedEdgeType}
+        onEdgeTypeChange={onEdgeTypeChange}
       />
 
       <MiniMap
@@ -59,6 +69,8 @@ export const Canvas = ({
   canUndo, canRedo, onUndo, onRedo,
   searchOpen, onSearchClose,
   onAddProject, onAddComponent,
+  onReady,
+  selectedEdgeType, onEdgeTypeChange,
 }) => {
   return (
     <div style={{ width: '100%', height: '100vh' }}>
@@ -98,6 +110,9 @@ export const Canvas = ({
           nodes={nodes}
           searchOpen={searchOpen}
           onSearchClose={onSearchClose}
+          onReady={onReady}
+          selectedEdgeType={selectedEdgeType}
+          onEdgeTypeChange={onEdgeTypeChange}
         />
       </ReactFlow>
     </div>
